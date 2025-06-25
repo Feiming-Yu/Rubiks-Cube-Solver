@@ -55,26 +55,27 @@ namespace UI
             _isSnapping = true;
         }
 
+        private void HandleRMBPress()
+        {
+            if (!Input.GetMouseButtonDown(1) || !_isHovering || _isCalculated || _isOrientating) 
+                return;
+
+            _lastMousePos = _initialClickPos = GetMousePosition();
+
+            _isOrientating = true;
+        }
+
         private void HandleRotationSnapping()
         {
             if (!_isSnapping) return;
 
             // Animates the cube from its current rotation to the quantised rotation
-            // 100 used as a speed constant. Higher means slower animation
-            cube.rotation = Quaternion.RotateTowards(cube.rotation, _quantisedRotation, 100 * Time.deltaTime);
+            // 100 used as a speed constant. Higher means faster animation
+            cube.rotation = Quaternion.RotateTowards(cube.rotation, _quantisedRotation, 300 * Time.deltaTime);
 
             // Stop animation once the current cube has reached quantised rotation
             if (cube.rotation.eulerAngles == _quantisedRotation.eulerAngles)
                 _isSnapping = false;
-        }
-
-        private void HandleRMBPress()
-        {
-            if (!Input.GetMouseButtonDown(1) || !_isHovering || _isCalculated || _isOrientating) return;
-
-            _lastMousePos = _initialClickPos = GetMousePosition();
-
-            _isOrientating = true;
         }
 
         private void HandleMouseMove()
@@ -120,7 +121,7 @@ namespace UI
                 _dragAxis = isLeftSide ? new Vector3(1, 0, 0) : new Vector3(0, 0, 1);
             }
 
-            // Locks the drag direction to avoid a non-discrete rotation value
+            // Locks the drag direction to avoid a non-one-dimensional rotation value
             _isCalculated = true;
         }
 
@@ -152,8 +153,6 @@ namespace UI
 
         private Vector2 GetMousePosition()
         {
-            // Calculates the position of the mouse
-            //
             // Subtracts by half of the screen's resolution
             // (0, 0) is the centre of the screen
             // Useful for checking which side the mouse is on (i.e. negative x means left side)

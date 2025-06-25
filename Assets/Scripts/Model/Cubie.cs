@@ -9,25 +9,24 @@ namespace Model
 {
     public class Cubie
     {
-        /*
-        Index   Corner    ||   Index    Edge
-          0	      URF     ||     0	     UR
-          1	      UFL     ||     1	     UF
-          2	      ULB     ||     2	     UL
-          3	      UBR     ||     3	     UB
-          4	      DFR     ||     4	     DR
-          5	      DLF     ||     5	     DF
-          6	      DBL     ||     6	     DL
-          7	      DRB     ||     7	     DB
-                          ||     8	     FR
-                          ||     9	     FL
-                          ||     10      BL
-                          ||     11      BR
-
-        Order of letters for corner and edge corresponds to order of the squares on the piece
-         */
-        public Dictionary<int, (List<int> colours, int orientation)> Corners { get; private set; }
-        public Dictionary<int, (List<int> colours, int orientation)> Edges { get; private set; }
+        //  Index   Corner    ||   Index    Edge
+        //   0	      URF     ||     0	     UR
+        //   1	      UFL     ||     1	     UF
+        //   2	      ULB     ||     2	     UL
+        //   3	      UBR     ||     3	     UB
+        //   4	      DFR     ||     4	     DR
+        //   5	      DLF     ||     5	     DF
+        //   6	      DBL     ||     6	     DL
+        //   7	      DRB     ||     7	     DB
+        //                    ||     8	     FR
+        //                    ||     9	     FL
+        //                    ||     10      BL
+        //                    ||     11      BR
+        // 
+        // Order of letters for corner and edge corresponds to order of the squares on the piece
+         
+        public Dictionary<int, (List<int> colours, int orientation)> Corners { get; }
+        public Dictionary<int, (List<int> colours, int orientation)> Edges { get; }
 
         /// <summary>
         /// A solved cube
@@ -35,36 +34,36 @@ namespace Model
         private static readonly Cubie Identity = new(
             new Dictionary<int, (List<int> colours, int orientation)>
             {
-                { 0, (new() { YELLOW, RED, BLUE }, 0) },
-                { 1, (new() { YELLOW, BLUE, ORANGE }, 0) },
-                { 2, (new() { YELLOW, ORANGE, GREEN }, 0) },
-                { 3, (new() { YELLOW, GREEN, RED }, 0) },
-                { 4, (new() { WHITE, BLUE, RED }, 0) },
-                { 5, (new() { WHITE, ORANGE, BLUE }, 0) },
-                { 6, (new() { WHITE, GREEN, ORANGE }, 0) },
-                { 7, (new() { WHITE, RED, GREEN }, 0) }
+                { 0, (new List<int> { YELLOW, RED   , BLUE   }, 0) },
+                { 1, (new List<int> { YELLOW, BLUE  , ORANGE }, 0) },
+                { 2, (new List<int> { YELLOW, ORANGE, GREEN  }, 0) },
+                { 3, (new List<int> { YELLOW, GREEN , RED    }, 0) },
+                { 4, (new List<int> { WHITE , BLUE  , RED    }, 0) },
+                { 5, (new List<int> { WHITE , ORANGE, BLUE   }, 0) },
+                { 6, (new List<int> { WHITE , GREEN , ORANGE }, 0) },
+                { 7, (new List<int> { WHITE , RED   , GREEN  }, 0) }
             },
             new Dictionary<int, (List<int> colours, int orientation)>
             {
-                { 0, (new() { YELLOW, RED }, 0) },
-                { 1, (new() { YELLOW, BLUE }, 0) },
-                { 2, (new() { YELLOW, ORANGE }, 0) },
-                { 3, (new() { YELLOW, GREEN }, 0) },
-                { 4, (new() { WHITE, RED }, 0) },
-                { 5, (new() { WHITE, BLUE }, 0) },
-                { 6, (new() { WHITE, ORANGE }, 0) },
-                { 7, (new() { WHITE, GREEN }, 0) },
-                { 8, (new() { BLUE, RED }, 0) },
-                { 9, (new() { BLUE, ORANGE }, 0) },
-                { 10, (new() { GREEN, ORANGE }, 0) },
-                { 11, (new() { GREEN, RED }, 0) }
+                { 0 , (new List<int> { YELLOW, RED    }, 0) },
+                { 1 , (new List<int> { YELLOW, BLUE   }, 0) },
+                { 2 , (new List<int> { YELLOW, ORANGE }, 0) },
+                { 3 , (new List<int> { YELLOW, GREEN  }, 0) },
+                { 4 , (new List<int> { WHITE , RED    }, 0) },
+                { 5 , (new List<int> { WHITE , BLUE   }, 0) },
+                { 6 , (new List<int> { WHITE , ORANGE }, 0) },
+                { 7 , (new List<int> { WHITE , GREEN  }, 0) },
+                { 8 , (new List<int> { BLUE  , RED    }, 0) },
+                { 9 , (new List<int> { BLUE  , ORANGE }, 0) },
+                { 10, (new List<int> { GREEN , ORANGE }, 0) },
+                { 11, (new List<int> { GREEN , RED    }, 0) }
             }
         );
 
         private Cubie(Dictionary<int, (List<int> colours, int orientation)> corners, Dictionary<int, (List<int> colours, int orientation)> edges)
         {
-            this.Corners = corners;
-            this.Edges = edges;
+            Corners = corners;
+            Edges = edges;
         }
 
         public Cubie()
@@ -126,6 +125,7 @@ namespace Model
         public void Log()
         {
             string message = "";
+            
             foreach (var corner in Corners)
             {
                 message += $"Corner {corner.Key} : {string.Join("", corner.Value.colours.Select(ColourToString).ToList())} - {corner.Value.orientation}\n";
@@ -148,7 +148,6 @@ namespace Model
         /// First array is index of the corner pieces on the face.
         /// Second array is the adjustment to the orientation so that the layer rotates properly
         /// </summary>
-
         private static readonly Dictionary<int, (int[] piecesIndexes, int[] orientationDeltas)> CornerMoveMap = new()
         {
             { YELLOW, (new[] { 0, 1, 2, 3 }, new[] { 0, 0, 0, 0 }) },
@@ -192,11 +191,11 @@ namespace Model
             RotatePieces(EdgeMoveMap[FaceToIndex(layer)], Edges, prime, twice);
         }
 
-        private void RotatePieces((int[] indexes, int[] orientationDelta) moveInfo, Dictionary<int, (List<int> colours, int orientation)> pieces, bool prime, bool twice)
+        private static void RotatePieces((int[] indexes, int[] orientationDelta) moveInfo, IDictionary<int, (List<int> colours, int orientation)> pieces, bool prime, bool twice)
         {
-            // Not possible to have both true as U'2 == U2
-            if(prime && twice)
-                throw new ArgumentException("Prime and twice cannot both be true");
+            // Prime and twice are mutually exclusive, U'2 == U2
+            if (prime && twice)
+                throw new ArgumentException("Prime and twice must be mutually exclusive");
 
             if (prime)
                 PrimeRotatePieces(moveInfo, pieces);
@@ -204,10 +203,9 @@ namespace Model
                 DoubleRotatePieces(moveInfo, pieces);
             else
                 NormalRotatePieces(moveInfo, pieces);
-
         }
 
-        private void  NormalRotatePieces((int[] indexes, int[] orientationDelta) moveInfo, Dictionary<int, (List<int> colours, int orientation)> pieces)
+        private static void NormalRotatePieces((int[] indexes, int[] orientationDelta) moveInfo, IDictionary<int, (List<int> colours, int orientation)> pieces)
         {
             // temporarily store the last piece
             var lastPiece = pieces[moveInfo.indexes[^1]]; 
@@ -227,7 +225,7 @@ namespace Model
         /// </summary>
         /// <param name="moveInfo"></param>
         /// <param name="pieces"></param>
-        private void DoubleRotatePieces((int[] indexes, int[] orientationDelta) moveInfo, Dictionary<int, (List<int> colours, int orientation)> pieces)
+        private static void DoubleRotatePieces((int[] indexes, int[] orientationDelta) moveInfo, IDictionary<int, (List<int> colours, int orientation)> pieces)
         {
             // swap opposite pieces
             (pieces[moveInfo.indexes[0]], pieces[moveInfo.indexes[2]]) = (pieces[moveInfo.indexes[2]], pieces[moveInfo.indexes[0]]);
@@ -239,7 +237,7 @@ namespace Model
         /// </summary>
         /// <param name="moveInfo"></param>
         /// <param name="pieces"></param>
-        private void PrimeRotatePieces((int[] indexes, int[] orientationDelta) moveInfo, Dictionary<int, (List<int> colours, int orientation)> pieces)
+        private static void PrimeRotatePieces((int[] indexes, int[] orientationDelta) moveInfo, IDictionary<int, (List<int> colours, int orientation)> pieces)
         {
             // temporarily store the first piece
             var firstPiece = pieces[moveInfo.indexes[0]];
@@ -254,7 +252,7 @@ namespace Model
             pieces[moveInfo.indexes[^1]] = Reorientate(firstPiece, moveInfo.orientationDelta[^1]);
         }
 
-        private (List<int> colours, int orientation) Reorientate((List<int> colours, int orientation) piece, int orientationDelta)
+        private static (List<int> colours, int orientation) Reorientate((List<int> colours, int orientation) piece, int orientationDelta)
         {
             return (piece.colours, (piece.orientation + orientationDelta) % piece.colours.Count);
         }

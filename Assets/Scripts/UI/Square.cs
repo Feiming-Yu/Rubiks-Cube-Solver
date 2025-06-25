@@ -1,12 +1,10 @@
 using System.Linq;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using static UI.Square.Colour;
 
 namespace UI
 {
-    [RequireComponent(typeof(MeshRenderer))]
-    public class Square : MonoBehaviour, IPointerClickHandler
+    public class Square : MonoBehaviour
     {
         public struct Colour
         {
@@ -17,16 +15,16 @@ namespace UI
             public const int ORANGE = 4;
             public const int RED = 5;
         }
-        
+
         [SerializeField] private Material[] squareMaterials;
-        
+
         public int colour;
 
-        private bool _isCentre;
+        public bool IsCentre { get; private set; }
 
         private void Start()
         {
-            _isCentre = transform.parent.name.Count(c => c == '0') == 2;
+            IsCentre = transform.parent.name.Count(c => c == '0') == 2;
         }
 
         public static string ColourToString(int colour)
@@ -43,6 +41,20 @@ namespace UI
             };
         }
 
+        public static string ColourToFace(int colour)
+        {
+            return colour switch
+            {
+                WHITE => "D",
+                YELLOW => "U",
+                GREEN => "B",
+                BLUE => "F",
+                ORANGE => "L",
+                RED => "R",
+                _ => "-",
+            };
+        }
+
         public static int FaceToIndex(string face)
         {
             return face switch
@@ -55,34 +67,6 @@ namespace UI
                 "R" => RED,
                 _ => -1,
             };
-        }
-
-        public void OnPointerClick(PointerEventData eventData)
-        {
-            if (_isCentre) return;
-
-            if (eventData.button != PointerEventData.InputButton.Left) return;
-
-            int clickCount = eventData.clickCount;
-
-            if (clickCount == 2)
-                SwitchColour();
-            else if (clickCount == 1)
-                ApplyColour();
-        }
-
-        private void SwitchColour()
-        {
-            Player.Instance.currentColourInput = (colour + 1) % 6;
-            ApplyColour();
-        }
-
-        private void ApplyColour()
-        {
-            if (colour == Player.Instance.currentColourInput) return;
-            
-            colour = Player.Instance.currentColourInput;
-            UpdateColour();
         }
 
         public void UpdateColour()

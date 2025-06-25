@@ -1,9 +1,8 @@
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace Model
 {
-    public class Converter : MonoBehaviour
+    public static class Converter
     {
         //       
         //                   .------------.
@@ -30,33 +29,33 @@ namespace Model
         #region Facelet To Cubie
 
         // indexes of squares for edge pieces
-        private static readonly int[][] EdgeFaceletMap = new int[12][]
+        private static readonly int[][] EdgeFaceletMap =
         {
-            new int[] { 11, 41 }, // UR
-            new int[] { 09, 25 }, // UF
-            new int[] { 12, 33 }, // UL
-            new int[] { 14, 17 }, // UB
-            new int[] { 3 , 46 }, // DR
-            new int[] { 6 , 30 }, // DF
-            new int[] { 4 , 38 }, // DL
-            new int[] { 1 , 22 }, // DB
-            new int[] { 28, 43 }, // FR
-            new int[] { 27, 36 }, // FL
-            new int[] { 20, 35 }, // BL
-            new int[] { 19, 44 }, // BR
+            new[] { 11, 41 }, // UR
+            new[] { 09, 25 }, // UF
+            new[] { 12, 33 }, // UL
+            new[] { 14, 17 }, // UB
+            new[] { 3 , 46 }, // DR
+            new[] { 6 , 30 }, // DF
+            new[] { 4 , 38 }, // DL
+            new[] { 1 , 22 }, // DB
+            new[] { 28, 43 }, // FR
+            new[] { 27, 36 }, // FL
+            new[] { 20, 35 }, // BL
+            new[] { 19, 44 }, // BR
         };
 
         // indexes of squares for corner pieces
-        private static readonly int[][] CornerFaceletMap = new int[8][]
+        private static readonly int[][] CornerFaceletMap =
         {
-            new int[] { 8 , 40, 26 }, // URF
-            new int[] { 10, 24, 34 }, // UFL
-            new int[] { 15, 32, 18 }, // ULB
-            new int[] { 13, 16, 42 }, // UBR
-            new int[] { 5 , 31, 45 }, // DFR
-            new int[] { 7 , 39, 29 }, // DLF
-            new int[] { 2 , 23, 37 }, // DBL
-            new int[] { 0 , 47, 21 }, // DRB
+            new[] { 8 , 40, 26 }, // URF
+            new[] { 10, 24, 34 }, // UFL
+            new[] { 15, 32, 18 }, // ULB
+            new[] { 13, 16, 42 }, // UBR
+            new[] { 5 , 31, 45 }, // DFR
+            new[] { 7 , 39, 29 }, // DLF
+            new[] { 2 , 23, 37 }, // DBL
+            new[] { 0 , 47, 21 }, // DRB
         };
         
         public static Cubie FaceletToCubie(Facelet facelet)
@@ -107,80 +106,80 @@ namespace Model
         /// <summary>
         /// 0 = corners, 1 = edges
         /// </summary>
-        private static readonly int[] PieceTypeCubieMap = new int[8] { 0, 1, 0, 1, 1, 0, 1, 0 };
+        private static readonly int[] PieceTypeCubieMap = { 0, 1, 0, 1, 1, 0, 1, 0 };
         
         /// <summary>
         /// First index = face
         /// Second index = piece index on face
         /// Third index = { piece index on cubie, square that corresponds to the face }
         /// </summary>
-        private static readonly int[][][] CubieMap = new int[6][][]
+        private static readonly int[][][] CubieMap =
         {
-            new int[8][] // D FACE
+            new[] // D FACE
             {
-                new int[2] { 7, 0 }, // DRB
-                new int[2] { 7, 0 }, // DB
-                new int[2] { 6, 0 }, // DBL
-                new int[2] { 4, 0 }, // DR
-                new int[2] { 6, 0 }, // DL
-                new int[2] { 4, 0 }, // DFR
-                new int[2] { 5, 0 }, // DF
-                new int[2] { 5, 0 }, // DLF
+                new[] { 7, 0 }, // DRB
+                new[] { 7, 0 }, // DB
+                new[] { 6, 0 }, // DBL
+                new[] { 4, 0 }, // DR
+                new[] { 6, 0 }, // DL
+                new[] { 4, 0 }, // DFR
+                new[] { 5, 0 }, // DF
+                new[] { 5, 0 }, // DLF
             },
-            new int[8][] // U FACE
+            new[] // U FACE
             {
-                new int[2] { 0, 0 }, // URF
-                new int[2] { 1, 0 }, // UF
-                new int[2] { 1, 0 }, // UFL
-                new int[2] { 0, 0 }, // UR
-                new int[2] { 2, 0 }, // UL
-                new int[2] { 3, 0 }, // UBR
-                new int[2] { 3, 0 }, // UB
-                new int[2] { 2, 0 }, // ULB
+                new[] { 0, 0 }, // URF
+                new[] { 1, 0 }, // UF
+                new[] { 1, 0 }, // UFL
+                new[] { 0, 0 }, // UR
+                new[] { 2, 0 }, // UL
+                new[] { 3, 0 }, // UBR
+                new[] { 3, 0 }, // UB
+                new[] { 2, 0 }, // ULB
             },
-            new int[8][] // B FACE
+            new[] // B FACE
             {
-                new int[2] { 3 , 1 }, // UBR
-                new int[2] { 3 , 1 }, // UB
-                new int[2] { 2 , 2 }, // ULB
-                new int[2] { 11, 0 }, // BR
-                new int[2] { 10, 0 }, // BL
-                new int[2] { 7 , 2 }, // DRB
-                new int[2] { 7 , 1 }, // DB
-                new int[2] { 6 , 1 }, // DBL
+                new[] { 3 , 1 }, // UBR
+                new[] { 3 , 1 }, // UB
+                new[] { 2 , 2 }, // ULB
+                new[] { 11, 0 }, // BR
+                new[] { 10, 0 }, // BL
+                new[] { 7 , 2 }, // DRB
+                new[] { 7 , 1 }, // DB
+                new[] { 6 , 1 }, // DBL
             },
-            new int[8][] // F FACE
+            new[] // F FACE
             {
-                new int[2] { 1, 1 }, // UFL
-                new int[2] { 1, 1 }, // UF
-                new int[2] { 0, 2 }, // URF
-                new int[2] { 9, 0 }, // FL
-                new int[2] { 8, 0 }, // FR
-                new int[2] { 5, 2 }, // DLF
-                new int[2] { 5, 1 }, // DF
-                new int[2] { 4, 1 }, // DFR
+                new[] { 1, 1 }, // UFL
+                new[] { 1, 1 }, // UF
+                new[] { 0, 2 }, // URF
+                new[] { 9, 0 }, // FL
+                new[] { 8, 0 }, // FR
+                new[] { 5, 2 }, // DLF
+                new[] { 5, 1 }, // DF
+                new[] { 4, 1 }, // DFR
             },
-            new int[8][] // L FACE
+            new[] // L FACE
             {
-                new int[2] { 2 , 1 }, // ULB
-                new int[2] { 2 , 1 }, // UL
-                new int[2] { 1 , 2 }, // UFL
-                new int[2] { 10, 1 }, // BL
-                new int[2] { 9 , 1 }, // FL
-                new int[2] { 6 , 2 }, // DBL
-                new int[2] { 6 , 1 }, // DL
-                new int[2] { 5 , 1 }, // DLF
+                new[] { 2 , 1 }, // ULB
+                new[] { 2 , 1 }, // UL
+                new[] { 1 , 2 }, // UFL
+                new[] { 10, 1 }, // BL
+                new[] { 9 , 1 }, // FL
+                new[] { 6 , 2 }, // DBL
+                new[] { 6 , 1 }, // DL
+                new[] { 5 , 1 }, // DLF
             },
-            new int[8][] // R FACE
+            new[] // R FACE
             {
-                new int[2] { 0 , 1 }, // URF
-                new int[2] { 0 , 1 }, // UR
-                new int[2] { 3 , 2 }, // UBR
-                new int[2] { 8 , 1 }, // FR
-                new int[2] { 11, 1 }, // BR
-                new int[2] { 4 , 2 }, // DFR
-                new int[2] { 4 , 1 }, // DR
-                new int[2] { 7 , 1 }, // DRB
+                new[] { 0 , 1 }, // URF
+                new[] { 0 , 1 }, // UR
+                new[] { 3 , 2 }, // UBR
+                new[] { 8 , 1 }, // FR
+                new[] { 11, 1 }, // BR
+                new[] { 4 , 2 }, // DFR
+                new[] { 4 , 1 }, // DR
+                new[] { 7 , 1 }, // DRB
             },
         };
 
@@ -213,7 +212,7 @@ namespace Model
         }
 
         /// <summary>
-        /// Supports cyclical data structure. Sets index to the max when decrement below 0
+        /// Supports circular data structure. Sets index to the max when decrement below 0
         /// </summary>
         /// <param name="index">New index</param>
         /// <param name="size">Size of list</param>
@@ -222,5 +221,4 @@ namespace Model
 
         #endregion
     }
-
 }

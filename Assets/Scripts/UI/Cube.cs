@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Model;
 using UnityEngine;
 
@@ -6,7 +7,6 @@ namespace UI
 {
     public class Cube : MonoBehaviour
     {
-
         public static Cube Instance;
 
         private void Awake()
@@ -19,27 +19,32 @@ namespace UI
 
         [SerializeField] private Transform piecePrefab;
 
+        private Transform _rotationPlane;
+
         private Cubie _cubie;
 
         private Facelet _facelet;
 
-        private List<Transform> _pieceTransformList = new();
+
+        private List<int> _movedPieceIndexes = new();
 
         private bool _initList;
+
+        private List<Transform> _pieceTransformList;
 
         private void Update()
         {
             if (_initList)
             {
+                _pieceTransformList = new();
                 for (int i = 0; i < transform.childCount; i++)
                 {
                     _pieceTransformList.Add(transform.GetChild(i));
                 }
-                
+
                 _initList = false;
 
-                GenerateFacelet();
-                _cubie = Converter.FaceletToCubie(_facelet);
+                UpdateModels();
             }
 
             if (Input.GetKeyDown(KeyCode.V))
@@ -50,80 +55,55 @@ namespace UI
                 _cubie.Log();
             }
 
-            if (Input.GetKeyDown(KeyCode.U))
-            {
-                _cubie.Move("U");
-                _facelet = Converter.CubieToFacelet(_cubie);
-                SetColours(_facelet);
-                _facelet.Log();
-            }
 
-            if (Input.GetKeyDown(KeyCode.D))
+            if (!_isAnimating)
             {
-                _cubie.Move("D");
-                _facelet = Converter.CubieToFacelet(_cubie);
-                SetColours(_facelet);
-                _facelet.Log();
+                KeyCode[] moveInputs = { KeyCode.U, KeyCode.D, KeyCode.F, KeyCode.B, KeyCode.R, KeyCode.L };
+                foreach (KeyCode key in moveInputs)
+                    if (Input.GetKeyDown(key))
+                    {
+                        _currentMove = key.ToString() + (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? "'" : "");
+                        Move();
+                        break; 
+                    }
             }
-
-            if (Input.GetKeyDown(KeyCode.F))
-            {
-                _cubie.Move("F");
-                _facelet = Converter.CubieToFacelet(_cubie);
-                SetColours(_facelet);
-                _facelet.Log();
-            }
-
-            if (Input.GetKeyDown(KeyCode.B))
-            {
-                _cubie.Move("B");
-                _facelet = Converter.CubieToFacelet(_cubie);
-                SetColours(_facelet);
-                _facelet.Log();
-            }
-
-            if (Input.GetKeyDown(KeyCode.R))
-            {
-                _cubie.Move("R");
-                _facelet = Converter.CubieToFacelet(_cubie);
-                SetColours(_facelet);
-                _facelet.Log();
-            }
-
-            if (Input.GetKeyDown(KeyCode.L))
-            {
-                _cubie.Move("L");
-                _facelet = Converter.CubieToFacelet(_cubie);
-                SetColours(_facelet);
-                _facelet.Log();
-            }
+            else
+                AnimateMove();
         }
 
         private void Start()
         {
+            GenerateCube();
+            InitRotationPlaneTransform();
+
+        }
+
+        private void GenerateCube()
+        {
+
             // iterates through all 27 (3^3) piece positions
             for (int i = -1; i <= 1; i++)
-            for (int j = -1; j <= 1; j++)
-            for (int k = -1; k <= 1; k++)
-            {
-                var piece = Instantiate(piecePrefab, transform);
-                piece.localPosition = new Vector3(i, j, k);
-                piece.name = $"{i} {j} {k}";
+                for (int j = -1; j <= 1; j++)
+                    for (int k = -1; k <= 1; k++)
+                    {
+                        var piece = Instantiate(piecePrefab, transform);
+                        piece.localPosition = new Vector3(i, j, k);
+                        piece.name = $"{i} {j} {k}";
 
-                // removes inner faces
-                if (k <= 0)
-                    Destroy(piece.GetChild(0).gameObject);
-                if (k >= 0)
-                    Destroy(piece.GetChild(1).gameObject);
-                if (j <= 0)
-                    Destroy(piece.GetChild(2).gameObject);
-                if (j >= 0)
-                    Destroy(piece.GetChild(3).gameObject);
-                if (i <= 0)
-                    Destroy(piece.GetChild(4).gameObject);
-                if (i >= 0)
-                    Destroy(piece.GetChild(5).gameObject);
-            }
+                        // removes inner faces
+                        if (k <= 0)
+                            Destroy(piece.GetChild(0).gameObject);
+                        if (k >= 0)
+                            Destroy(piece.GetChild(1).gameObject);
+                        if (j <= 0)
+                            Destroy(piece.GetChild(2).gameObject);
+                        if (j >= 0)
+                            Destroy(piece.GetChild(3).gameObject);
+                        if (i <= 0)
+                            Destroy(piece.GetChild(4).gameObject);
+                        if (i >= 0)
+                            Destroy(piece.GetChild(5).gameObject);
+                    }
 
             // Destroy() methods are called after each frame
             // Therefore will not be called during the Start() procedure
@@ -131,25 +111,37 @@ namespace UI
             _initList = true;
         }
 
-
-        private readonly int[][] _colourPiecePositions = new int[6][]
+        private void InitRotationPlaneTransform()
         {
-            new int [8] { 18, 19, 20, 9, 11, 0, 1, 2 },
-            new int [8] { 6, 7, 8, 15, 17, 24, 25, 26 },
-            new int [8] { 24, 25, 26, 21, 23, 18, 19, 20 },
-            new int [8] { 8, 7, 6, 5, 3, 2, 1, 0 },
-            new int [8] { 26, 17, 8, 23, 5, 20, 11, 2 },
-            new int [8] { 6, 15, 24, 3, 21, 0, 9, 18 },
+            _rotationPlane = Instance.transform.Find("Rotation Plane");
+            _rotationPlane.parent = transform;
+            _rotationPlane.SetAsLastSibling();
+        }
+
+        private void UpdateModels()
+        {
+            GenerateFacelet();
+            ConvertFaceletToCubie();
+        }
+
+        private static readonly int[][] ColourPieceMap =
+        {
+            new[] { 18, 19, 20, 9 , 11, 0 , 1 , 2  }, // D
+            new[] { 6 , 7 , 8 , 15, 17, 24, 25, 26 }, // U
+            new[] { 24, 25, 26, 21, 23, 18, 19, 20 }, // B
+            new[] { 8 , 7 , 6 , 5 , 3 , 2 , 1 , 0  }, // F
+            new[] { 26, 17, 8 , 23, 5 , 20, 11, 2  }, // L
+            new[] { 6 , 15, 24, 3 , 21, 0 , 9 , 18 }, // R
         };
 
-        private readonly int[][] _colourSquarePositions = new int[6][]
+        private static readonly int[][] ColourSquareMap =
         {
-            new int [8] { 1, 0, 1, 1, 1, 1, 0, 1 },
-            new int [8] { 1, 0, 1, 1, 1, 1, 0, 1 },
-            new int [8] { 2, 1, 2, 1, 1, 2, 1, 2 },
-            new int [8] { 2, 1, 2, 1, 1, 2, 1, 2 },
-            new int [8] { 0, 0, 0, 0, 0, 0, 0, 0 },
-            new int [8] { 0, 0, 0, 0, 0, 0, 0, 0 }
+            new[] { 1, 0, 1, 1, 1, 1, 0, 1 }, // D
+            new[] { 1, 0, 1, 1, 1, 1, 0, 1 }, // U
+            new[] { 2, 1, 2, 1, 1, 2, 1, 2 }, // B
+            new[] { 2, 1, 2, 1, 1, 2, 1, 2 }, // F
+            new[] { 0, 0, 0, 0, 0, 0, 0, 0 }, // L
+            new[] { 0, 0, 0, 0, 0, 0, 0, 0 }, // R
         };
 
         /// <summary>
@@ -167,7 +159,7 @@ namespace UI
                 _facelet.Faces[i] = new List<int>();
 
                 for (int j = 0; j < 8; j++)
-                    AddToFacelet(_facelet, i, _colourPiecePositions[i][j], _colourSquarePositions[i][j]);
+                    AddToFacelet(_facelet, i, ColourPieceMap[i][j], ColourSquareMap[i][j]);
             }
         }
 
@@ -188,10 +180,10 @@ namespace UI
 
         private void SetColours(Facelet f)
         {
-            for (int i = 0; i <= 5; i++)
+            for (int i = 0; i < 6; i++)
             for (int j = 0; j < 8; j++)
             {
-                SetSquareColour(f.Faces[i][j], _colourPiecePositions[i][j], _colourSquarePositions[i][j]);
+                SetSquareColour(f.Faces[i][j], ColourPieceMap[i][j], ColourSquareMap[i][j]);
             }
         }
 
@@ -201,5 +193,97 @@ namespace UI
             square.colour = colour;
             square.UpdateColour();
         }
+
+        private void ConvertFaceletToCubie()
+        {
+            _cubie = Converter.FaceletToCubie(_facelet);
+        }
+
+        # region Move Animation   
+        
+        private Quaternion _destinationOrientation = Quaternion.identity;
+        private Quaternion _startOrientation = Quaternion.identity;
+
+        private bool _isAnimating;
+
+        private string _currentMove;
+
+        // Indexes of centre pieces
+        private readonly int[] _centrePieces = { 10, 16, 22, 4, 14, 12 };
+        
+        private void Move()
+        {
+            _startOrientation = _rotationPlane.localRotation;
+            _destinationOrientation = Quaternion.Euler(_rotationPlane.localRotation.eulerAngles + GetRotation(_currentMove));
+            _isAnimating = true;
+
+            GroupPieces(Square.FaceToIndex(_currentMove[0].ToString()));
+        }
+
+        private static Vector3 GetRotation(string move)
+        {
+            string face = move[0].ToString();
+
+            var moveVector = face switch
+            {
+                "U" => Vector3.up,
+                "R" => Vector3.right,
+                "F" => Vector3.forward,
+                "D" => Vector3.down,
+                "L" => Vector3.left,
+                "B" => Vector3.back,
+                _ => Vector3.zero,
+            } * 90f;
+
+            return move[^1] switch
+            {
+                '\'' => moveVector * -1,
+                '2' => moveVector * 2,
+                _ => moveVector
+            };
+        }
+
+        private void AnimateMove()
+        {
+            _rotationPlane.localRotation = Quaternion.RotateTowards(_rotationPlane.localRotation, _destinationOrientation, 400 * Time.deltaTime);
+
+            if (_rotationPlane.localRotation != _destinationOrientation) return;
+
+            _isAnimating = false;
+            // Undo rotation ...
+            _rotationPlane.localRotation = _startOrientation;
+            UngroupPieces();
+
+            // ... then do an instant rotation after the cubie rotation
+            _cubie.Move(_currentMove);
+            _facelet = Converter.CubieToFacelet(_cubie);
+            SetColours(_facelet);
+        }
+
+        private void GroupPieces(int face)
+        {
+            _movedPieceIndexes = ColourPieceMap[face].ToList();
+            _movedPieceIndexes.Add(_centrePieces[face]);
+            // When ungroup pieces, need to place pieces in the correct order 
+            // Indexes will be messed up if not in order.
+            _movedPieceIndexes.Sort();
+
+            foreach (var pieceOnFaceIndex in _movedPieceIndexes)
+            {
+                _pieceTransformList[pieceOnFaceIndex].SetParent(_rotationPlane);
+            }
+        }
+
+        private void UngroupPieces()
+        {
+            int count = _rotationPlane.childCount;
+            for (int i = 0; i < count; i++)
+            {
+                _rotationPlane.GetChild(0).SetParent(transform);
+                transform.GetChild(transform.childCount - 1).SetSiblingIndex(_movedPieceIndexes[i]);
+            }
+        }
+
+        #endregion
     }
 }
