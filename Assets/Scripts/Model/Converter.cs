@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Model
 {
@@ -58,7 +60,7 @@ namespace Model
             new[] { 0 , 47, 21 }, // DRB
         };
         
-        public static Cubie FaceletToCubie(Facelet facelet)
+        public static Cubie FaceletToCubie(Facelet facelet, bool doOrientation = true)
         {
             Cubie cubie = new();
 
@@ -74,9 +76,15 @@ namespace Model
                     colours.Add(squares[CornerFaceletMap[i][j]]);
                 }
 
-                // Get original sequence of colours
-                var homeColours = Cubie.FindHomeColours(colours);
-                var orientation = Cubie.CalculateOrientation(homeColours, colours);
+                var orientation = 0;
+
+                if (doOrientation)
+                { 
+                    // Get original sequence of colours
+                    var homeColours = Cubie.FindHomeColours(colours);
+                    orientation = Cubie.CalculateOrientation(homeColours, colours);
+                }
+
                 cubie.Add(i, colours, orientation);
             }
 
@@ -90,9 +98,15 @@ namespace Model
                     colours.Add(squares[EdgeFaceletMap[i][j]]);
                 }
 
-                // Get original sequence of colours
-                var homeColours = Cubie.FindHomeColours(colours);
-                var orientation = Cubie.CalculateOrientation(homeColours, colours);
+                var orientation = 0;
+
+                if (doOrientation)
+                {
+                    // Get original sequence of colours
+                    var homeColours = Cubie.FindHomeColours(colours);
+                    orientation = Cubie.CalculateOrientation(homeColours, colours);
+                }
+
                 cubie.Add(i, colours, orientation);
             }
 
@@ -220,5 +234,16 @@ namespace Model
         private static int NormaliseIndex(int index, int size) => ((index % size) + size) % size;
 
         #endregion
+
+        public static int GetOtherEdgeSquareIndex(int index)
+        {
+            foreach (var edge in EdgeFaceletMap)
+            {
+                if(edge.Contains(index))
+                    return edge[1 - edge.ToList().IndexOf(index)];
+            }
+
+            throw new ArgumentException("Square index out of bounds");
+        }
     }
 }

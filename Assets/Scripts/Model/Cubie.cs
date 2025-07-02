@@ -2,6 +2,7 @@ using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 using static UI.Square;
 using static UI.Square.Colour;
 
@@ -60,7 +61,7 @@ namespace Model
             }
         );
 
-        private Cubie(Dictionary<int, (List<int> colours, int orientation)> corners, Dictionary<int, (List<int> colours, int orientation)> edges)
+        public Cubie(Dictionary<int, (List<int> colours, int orientation)> corners, Dictionary<int, (List<int> colours, int orientation)> edges)
         {
             Corners = corners;
             Edges = edges;
@@ -77,24 +78,31 @@ namespace Model
             (colours.Count == 3 ? Corners : Edges).Add(index, (colours, orientation));
         }
 
-
         public static List<int> FindHomeColours(List<int> colours)
         {
             // validity check for correct number of colours
             if (colours.Count != 2 && colours.Count != 3)
                 throw new ArgumentException("Impossible piece");
 
+            var index = FindHomeIndex(colours);
+
             // identify which to search
             var pieces = colours.Count == 2 ? Identity.Edges : Identity.Corners;
 
+            return index == -1 ? null : new(pieces[index].colours);
+        }
+
+        public static int FindHomeIndex(List<int> colours)
+        {
+            var pieces = colours.Count == 2 ? Identity.Edges : Identity.Corners;
+
             foreach (var kvp in pieces)
-            {
                 // check if colours are matching, ignoring order
                 if (kvp.Value.colours.All(colours.Contains))
-                    return kvp.Value.colours;
-            }
+                    return kvp.Key;
 
-            throw new ArgumentException("Piece not found");
+            Debug.LogWarning("Piece not found");
+            return -1;
         }
 
         public static int CalculateOrientation(List<int> original, List<int> data)
@@ -119,7 +127,8 @@ namespace Model
 
             // colours are matching but sequence will never match
             // unexpected error
-            throw new ArgumentException("Invalid piece sequence");
+            Debug.LogWarning("Invalid piece sequence");
+            return -1;
         }
 
         public void Log()
@@ -127,14 +136,10 @@ namespace Model
             string message = "";
             
             foreach (var corner in Corners)
-            {
                 message += $"Corner {corner.Key} : {string.Join("", corner.Value.colours.Select(ColourToString).ToList())} - {corner.Value.orientation}\n";
-            }
 
             foreach (var edge in Edges)
-            {
                 message += $"Edge {edge.Key} : {string.Join("", edge.Value.colours.Select(ColourToString).ToList())} - {edge.Value.orientation}\n";
-            }
 
             Debug.Log(message);
         }
@@ -211,10 +216,8 @@ namespace Model
             var lastPiece = pieces[moveInfo.indexes[^1]]; 
 
             for (int i = moveInfo.indexes.Length - 1; i > 0; i--)
-            {
                 // shift pieces to the right and adjust orientation
                 pieces[moveInfo.indexes[i]] = Reorientate(pieces[moveInfo.indexes[i - 1]], moveInfo.orientationDelta[i]); 
-            }
 
             // move last piece to the start
             pieces[moveInfo.indexes[0]] = Reorientate(lastPiece, moveInfo.orientationDelta[0]); 
@@ -243,10 +246,8 @@ namespace Model
             var firstPiece = pieces[moveInfo.indexes[0]];
 
             for (int i = 0; i < moveInfo.indexes.Length - 1; i++)
-            {
                 // shift pieces to the left and adjust orientation
                 pieces[moveInfo.indexes[i]] = Reorientate(pieces[moveInfo.indexes[i + 1]], moveInfo.orientationDelta[i]);
-            }
 
             // move first piece to the end
             pieces[moveInfo.indexes[^1]] = Reorientate(firstPiece, moveInfo.orientationDelta[^1]);
