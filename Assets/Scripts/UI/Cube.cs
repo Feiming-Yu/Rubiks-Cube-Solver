@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Model;
 using UnityEngine;
+using Engine;
+using static UI.Square;
 
 namespace UI
 {
@@ -18,6 +20,7 @@ namespace UI
         }
 
         [SerializeField] private Transform piecePrefab;
+        [SerializeField] private float animationSpeed;
 
         private Transform _rotationPlane;
 
@@ -49,61 +52,86 @@ namespace UI
 
             if (Input.GetKeyDown(KeyCode.V))
             {
-                GenerateFacelet();
-                _facelet.Log();
-                _cubie = Converter.FaceletToCubie(_facelet);
-                _cubie.Log();
+                System.Random r = new ();
+
+                int total = r.Next(20, 40);
+
+                for (int i = 0; i < total; i++)
+                {
+                    string move = ColourToFace(r.Next(0, 5));
+                    if (_moveQueue.Count > 1)
+                        if (move == _moveQueue[^1][0].ToString()) continue;
+
+                    switch (r.Next(0, 10))
+                    {
+                        case 0:
+                        case 2:
+                        case 3:
+                            move += "'";
+                            break;
+                        case 1:
+                            move += "2";
+                            break;
+                        default:
+                            break;
+                    }
+                    _moveQueue.Add(move);
+                }
             }
 
+            if (Input.GetKeyDown(KeyCode.C))
+            {
+                GenerateFacelet();
+                Debug.Log(Validation.Validate(_facelet));
+            }
+
+
+            KeyCode[] moveInputs = { KeyCode.U, KeyCode.D, KeyCode.F, KeyCode.B, KeyCode.R, KeyCode.L };
+            foreach (KeyCode key in moveInputs)
+                if (Input.GetKeyDown(key))
+                {
+                    _moveQueue.Add(key.ToString() + (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? "'" : ""));
+                    break; 
+                }
+
+            if (_moveQueue.Count == 0) return;
 
             if (!_isAnimating)
-            {
-                KeyCode[] moveInputs = { KeyCode.U, KeyCode.D, KeyCode.F, KeyCode.B, KeyCode.R, KeyCode.L };
-                foreach (KeyCode key in moveInputs)
-                    if (Input.GetKeyDown(key))
-                    {
-                        _currentMove = key.ToString() + (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? "'" : "");
-                        Move();
-                        break; 
-                    }
-            }
-            else
-                AnimateMove();
+                Move();
+            AnimateMove();
         }
 
         private void Start()
         {
             GenerateCube();
             InitRotationPlaneTransform();
-
         }
 
         private void GenerateCube()
         {
-
             // iterates through all 27 (3^3) piece positions
             for (int i = -1; i <= 1; i++)
-                for (int j = -1; j <= 1; j++)
-                    for (int k = -1; k <= 1; k++)
-                    {
-                        var piece = Instantiate(piecePrefab, transform);
-                        piece.localPosition = new Vector3(i, j, k);
-                        piece.name = $"{i} {j} {k}";
+            for (int j = -1; j <= 1; j++)
+            for (int k = -1; k <= 1; k++)
+            {
+                var piece = Instantiate(piecePrefab, transform);
+                piece.localPosition = new Vector3(i, j, k);
+                piece.name = $"{i} {j} {k}";
 
-                        // removes inner faces
-                        if (k <= 0)
-                            Destroy(piece.GetChild(0).gameObject);
-                        if (k >= 0)
-                            Destroy(piece.GetChild(1).gameObject);
-                        if (j <= 0)
-                            Destroy(piece.GetChild(2).gameObject);
-                        if (j >= 0)
-                            Destroy(piece.GetChild(3).gameObject);
-                        if (i <= 0)
-                            Destroy(piece.GetChild(4).gameObject);
-                        if (i >= 0)
-                            Destroy(piece.GetChild(5).gameObject);
-                    }
+                // removes inner faces
+                if (k <= 0)
+                    Destroy(piece.GetChild(0).gameObject);
+                if (k >= 0)
+                    Destroy(piece.GetChild(1).gameObject);
+                if (j <= 0)
+                    Destroy(piece.GetChild(2).gameObject);
+                if (j >= 0)
+                    Destroy(piece.GetChild(3).gameObject);
+                if (i <= 0)
+                    Destroy(piece.GetChild(4).gameObject);
+                if (i >= 0)
+                    Destroy(piece.GetChild(5).gameObject);
+            }
 
             // Destroy() methods are called after each frame
             // Therefore will not be called during the Start() procedure
@@ -118,7 +146,7 @@ namespace UI
             _rotationPlane.SetAsLastSibling();
         }
 
-        private void UpdateModels()
+        public void UpdateModels()
         {
             GenerateFacelet();
             ConvertFaceletToCubie();
@@ -196,7 +224,7 @@ namespace UI
 
         private void ConvertFaceletToCubie()
         {
-            _cubie = Converter.FaceletToCubie(_facelet);
+            _cubie = Converter.FaceletToCubie(_facelet, false);
         }
 
         # region Move Animation   
@@ -206,7 +234,7 @@ namespace UI
 
         private bool _isAnimating;
 
-        private string _currentMove;
+        private List<string> _moveQueue = new();
 
         // Indexes of centre pieces
         private readonly int[] _centrePieces = { 10, 16, 22, 4, 14, 12 };
@@ -214,10 +242,10 @@ namespace UI
         private void Move()
         {
             _startOrientation = _rotationPlane.localRotation;
-            _destinationOrientation = Quaternion.Euler(_rotationPlane.localRotation.eulerAngles + GetRotation(_currentMove));
+            _destinationOrientation = Quaternion.Euler(_rotationPlane.localRotation.eulerAngles + GetRotation(_moveQueue[0]));
             _isAnimating = true;
 
-            GroupPieces(Square.FaceToIndex(_currentMove[0].ToString()));
+            GroupPieces(Square.FaceToIndex(_moveQueue[0][0].ToString()));
         }
 
         private static Vector3 GetRotation(string move)
@@ -228,7 +256,7 @@ namespace UI
             {
                 "U" => Vector3.up,
                 "R" => Vector3.right,
-                "F" => Vector3.forward,
+                "F" => Vector3.back,
                 "D" => Vector3.down,
                 "L" => Vector3.left,
                 "B" => Vector3.back,
@@ -245,7 +273,7 @@ namespace UI
 
         private void AnimateMove()
         {
-            _rotationPlane.localRotation = Quaternion.RotateTowards(_rotationPlane.localRotation, _destinationOrientation, 400 * Time.deltaTime);
+            _rotationPlane.localRotation = Quaternion.RotateTowards(_rotationPlane.localRotation, _destinationOrientation, animationSpeed * 100 * Time.deltaTime);
 
             if (_rotationPlane.localRotation != _destinationOrientation) return;
 
@@ -255,9 +283,11 @@ namespace UI
             UngroupPieces();
 
             // ... then do an instant rotation after the cubie rotation
-            _cubie.Move(_currentMove);
+            _cubie.Move(_moveQueue[0]);
             _facelet = Converter.CubieToFacelet(_cubie);
             SetColours(_facelet);
+
+            _moveQueue.RemoveAt(0);
         }
 
         private void GroupPieces(int face)

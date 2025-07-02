@@ -48,6 +48,7 @@ namespace UI
 
             Colour = Player.Instance.currentColourInput;
             Square.UpdateColour();
+            Cube.Instance.UpdateModels();
         }
     }
 }
