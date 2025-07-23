@@ -20,6 +20,7 @@ namespace UI
         }
 
         [SerializeField] private Transform piecePrefab;
+
         [SerializeField] private float animationSpeed;
 
         private Transform _rotationPlane;
@@ -28,83 +29,108 @@ namespace UI
 
         private Facelet _facelet;
 
-
         private List<int> _movedPieceIndexes = new();
 
         private bool _initList;
 
         private List<Transform> _pieceTransformList;
 
+        [HideInInspector] public bool isOrientating = false;
+
+        private readonly KeyCode[] _moveInputs = { KeyCode.U, KeyCode.D, KeyCode.F, KeyCode.B, KeyCode.R, KeyCode.L };
+
+        private Solver _solver;
+
         private void Update()
         {
-            if (_initList)
-            {
-                _pieceTransformList = new();
-                for (int i = 0; i < transform.childCount; i++)
-                {
-                    _pieceTransformList.Add(transform.GetChild(i));
-                }
+            InitPieceTransformList();
 
-                _initList = false;
-
-                UpdateModels();
-            }
-
-            if (Input.GetKeyDown(KeyCode.V))
-            {
-                System.Random r = new ();
-
-                int total = r.Next(20, 40);
-
-                for (int i = 0; i < total; i++)
-                {
-                    string move = ColourToFace(r.Next(0, 5));
-                    if (_moveQueue.Count > 1)
-                        if (move == _moveQueue[^1][0].ToString()) continue;
-
-                    switch (r.Next(0, 10))
-                    {
-                        case 0:
-                        case 2:
-                        case 3:
-                            move += "'";
-                            break;
-                        case 1:
-                            move += "2";
-                            break;
-                        default:
-                            break;
-                    }
-                    _moveQueue.Add(move);
-                }
-            }
-
-            if (Input.GetKeyDown(KeyCode.C))
-            {
-                GenerateFacelet();
-                Debug.Log(Validation.Validate(_facelet));
-            }
-
-
-            KeyCode[] moveInputs = { KeyCode.U, KeyCode.D, KeyCode.F, KeyCode.B, KeyCode.R, KeyCode.L };
-            foreach (KeyCode key in moveInputs)
-                if (Input.GetKeyDown(key))
-                {
-                    _moveQueue.Add(key.ToString() + (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? "'" : ""));
-                    break; 
-                }
-
-            if (_moveQueue.Count == 0) return;
-
-            if (!_isAnimating)
-                Move();
-            AnimateMove();
+            HandleMoves();
         }
 
         private void Start()
         {
             GenerateCube();
             InitRotationPlaneTransform();
+            InitSolver();
+        }
+
+        private void InitSolver()
+        {
+            _solver = new Solver();
+        }
+
+        public async void Solve(int stage)
+        {
+            GenerateFacelet();
+            if (Validation.Validate(_facelet))
+                await _solver.SolveAsync(Converter.FaceletToCubie(_facelet), stage);
+            else
+                Debug.LogWarning("Invalid Cube");
+        }
+
+        public void Shuffle()
+        {
+            System.Random r = new();
+
+            int total = r.Next(60, 80);
+
+            for (int i = 0; i < total; i++)
+            {
+                string move = ColourToFace(r.Next(0, 6));
+                if (_moveQueue.Count > 1 && move == _moveQueue.Last()[0].ToString()) continue;
+
+                switch (r.Next(0, 10))
+                {
+                    case 0:
+                    case 2:
+                    case 3:
+                        move += "'";
+                        break;
+                    case 1:
+                        move += "2";
+                        break;
+                    default:
+                        break;
+                }
+
+                Enqueue(move);
+            }
+        }
+
+        private void InitPieceTransformList()
+        {
+            if (!_initList) return;
+
+            _pieceTransformList = new();
+            for (int i = 0; i < transform.childCount; i++)
+                _pieceTransformList.Add(transform.GetChild(i));
+
+            _initList = false;
+
+            UpdateModels();
+        }
+
+        private void LogValidity()
+        {
+            GenerateFacelet();
+            Debug.Log("Cube validity: " + Validation.Validate(_facelet));
+        }
+
+        private void HandleMoves()
+        {
+            foreach (KeyCode key in _moveInputs)
+                if (Input.GetKeyDown(key))
+                {
+                    bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+                    Enqueue(key.ToString() + (shift ? "'" : ""));
+                    break;
+                }
+
+            if (_moveQueue.Count > 0 && !_isAnimating)
+                Move();
+            if (_isAnimating && !isOrientating)
+                AnimateMove();
         }
 
         private void GenerateCube()
@@ -139,6 +165,11 @@ namespace UI
             _initList = true;
         }
 
+        public void SetFacelet(Facelet facelet)
+        {
+            _facelet = facelet;
+        }
+
         private void InitRotationPlaneTransform()
         {
             _rotationPlane = Instance.transform.Find("Rotation Plane");
@@ -149,7 +180,7 @@ namespace UI
         public void UpdateModels()
         {
             GenerateFacelet();
-            ConvertFaceletToCubie();
+            UpdateCubie();
         }
 
         private static readonly int[][] ColourPieceMap =
@@ -206,13 +237,11 @@ namespace UI
             cube.Faces[face].Add(colour);
         }
 
-        private void SetColours(Facelet f)
+        public void SetColours(Facelet f)
         {
             for (int i = 0; i < 6; i++)
             for (int j = 0; j < 8; j++)
-            {
                 SetSquareColour(f.Faces[i][j], ColourPieceMap[i][j], ColourSquareMap[i][j]);
-            }
         }
 
         private void SetSquareColour(int colour, int pieceIndex, int squareIndex)
@@ -222,30 +251,49 @@ namespace UI
             square.UpdateColour();
         }
 
-        private void ConvertFaceletToCubie()
+        public void UpdateCubie()
         {
             _cubie = Converter.FaceletToCubie(_facelet, false);
         }
 
-        # region Move Animation   
-        
+        public void Enqueue(string move)
+        {
+            _moveQueue.Enqueue(move);
+        }
+
+        public void Enqueue(Queue<string> moves)
+        {
+            while (moves.Count > 0)
+                _moveQueue.Enqueue(moves.Dequeue());
+        }
+
+        #region Move Animation   
+
         private Quaternion _destinationOrientation = Quaternion.identity;
         private Quaternion _startOrientation = Quaternion.identity;
 
         private bool _isAnimating;
 
-        private List<string> _moveQueue = new();
+        private readonly Queue<string> _moveQueue = new();
+        private string currentMove;
 
         // Indexes of centre pieces
         private readonly int[] _centrePieces = { 10, 16, 22, 4, 14, 12 };
         
+        public void ClearQueue()
+        {
+            _moveQueue.Clear();
+        }
+
         private void Move()
         {
             _startOrientation = _rotationPlane.localRotation;
-            _destinationOrientation = Quaternion.Euler(_rotationPlane.localRotation.eulerAngles + GetRotation(_moveQueue[0]));
+            currentMove = _moveQueue.Dequeue();
+            _destinationOrientation = Quaternion.Euler(
+                _rotationPlane.localRotation.eulerAngles + GetRotation(currentMove));
             _isAnimating = true;
 
-            GroupPieces(Square.FaceToIndex(_moveQueue[0][0].ToString()));
+            GroupPieces(FaceToIndex(currentMove[0].ToString()));
         }
 
         private static Vector3 GetRotation(string move)
@@ -273,21 +321,23 @@ namespace UI
 
         private void AnimateMove()
         {
-            _rotationPlane.localRotation = Quaternion.RotateTowards(_rotationPlane.localRotation, _destinationOrientation, animationSpeed * 100 * Time.deltaTime);
+            _rotationPlane.localRotation = Quaternion.RotateTowards(
+                _rotationPlane.localRotation, 
+                _destinationOrientation, 
+                animationSpeed * 100 * Time.deltaTime);
 
             if (_rotationPlane.localRotation != _destinationOrientation) return;
 
-            _isAnimating = false;
             // Undo rotation ...
             _rotationPlane.localRotation = _startOrientation;
             UngroupPieces();
 
             // ... then do an instant rotation after the cubie rotation
-            _cubie.Move(_moveQueue[0]);
+            _cubie.Move(currentMove);
             _facelet = Converter.CubieToFacelet(_cubie);
             SetColours(_facelet);
 
-            _moveQueue.RemoveAt(0);
+            _isAnimating = false;
         }
 
         private void GroupPieces(int face)
@@ -299,9 +349,7 @@ namespace UI
             _movedPieceIndexes.Sort();
 
             foreach (var pieceOnFaceIndex in _movedPieceIndexes)
-            {
                 _pieceTransformList[pieceOnFaceIndex].SetParent(_rotationPlane);
-            }
         }
 
         private void UngroupPieces()

@@ -1,13 +1,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using Model;
-using UnityEngine;
 using static Model.Converter;
 using static UI.Square.Colour;
-using static UI.Square;
+using static Model.Cubie;
 
 namespace Engine
 {
+    // For clarity, I have not used boolean logic
+    // e.g. return CheckLegal(cube) && !CheckSolvable(Converter.FaceletToCubie(cube), cube)
+    // as separating the selection constructs improves clarity
+    // and allows ease of following the step by step process to check validation.
     public static class Validation
     {
         public static bool Validate(Facelet cube)
@@ -33,13 +36,16 @@ namespace Engine
 
         private static bool ColourFrequencyCheck(Facelet cube)
         {
+            // a list of the frequency of each colour
             List<int> frequencies = new() { 0, 0, 0, 0, 0, 0 };
 
-            foreach (var f in cube.Faces)
-            foreach (var s in f.Value)
+            // increment for the corresponding colour on every square
+            foreach (var s in cube.Faces.SelectMany(f => f.Value))
                 frequencies[s]++;
-        
-            return frequencies.ToHashSet().Count == 1;
+
+            var s_frequencies = frequencies.ToHashSet();
+
+            return s_frequencies.Count == 1 && s_frequencies.ElementAt(0) == 8;
         }
 
         private static bool AdjacentSquareCheck(Cubie cube)
@@ -61,9 +67,11 @@ namespace Engine
             foreach (var piece in pieces)
             {
                 var homeColours = Cubie.FindHomeColours(piece.colours);
+                // null if homeColour search fails
                 if (homeColours == null) return false;
 
                 var orientation = Cubie.CalculateOrientation(piece.colours, homeColours);
+                // -1 if orientation calculation fails
                 if (orientation == -1) return false;
             }
 
@@ -80,7 +88,7 @@ namespace Engine
 
             if (!TwistedCornerCheck(cubie)) return false;
 
-            if (!EdgeParityCheck(cubie, facelet.Concat())) return false;
+            if (!EdgeParityCheck(facelet.Concat())) return false;
 
             return true;
         }
@@ -92,7 +100,7 @@ namespace Engine
             return (CountSwaps(cube.Corners) + CountSwaps(cube.Edges)) % 2 == 0;
         }
 
-        private static int CountSwaps(IDictionary<int, (List<int> colours, int orientation)> pieces)
+        private static int CountSwaps(IDictionary<int, Piece> pieces)
         {
             int swaps = 0;
 
@@ -103,9 +111,12 @@ namespace Engine
                 if (i == homeIndex)
                     continue;
 
-                (pieces[i], pieces[homeIndex]) = (pieces[homeIndex], pieces[i]);
+                // one piece is swapped into its correct position.
+                (pieces[i], pieces[homeIndex]) = (pieces[homeIndex], pieces[i]); 
 
                 swaps++;
+
+                // force re-inspection of this position;
                 i--;
             }
 
@@ -119,26 +130,26 @@ namespace Engine
             return cubeValue % 3 == 0;
         }
 
-        private static bool EdgeParityCheck(Cubie cubie, IReadOnlyList<int> squares)
+        private static readonly List<int> KeyIndexes = new() { 12, 11, 25, 27, 28, 30, 4, 3, 22, 20, 19, 17 };
+
+        private static bool EdgeParityCheck(IReadOnlyList<int> squares)
         {
-            List<int> keyIndexes = new() { 12, 11, 25, 27, 28, 30, 4, 3, 22, 20, 19, 17 };
+            int superKeysCount = 0;
 
-            int superKeySCount = 0;
-
-            foreach (int index in keyIndexes)
+            foreach (int index in KeyIndexes)
             {
                 var square = squares[index];
                 var adjacentSquare = squares[GetOtherEdgeSquareIndex(index)];
 
-                Debug.Log(ColourToString(square) + ColourToString(adjacentSquare));
-
+                // first qualification for a super key
                 if (square == WHITE || square == YELLOW)
-                    superKeySCount++;
+                    superKeysCount++;
+                // second qualification for a super key
                 else if (adjacentSquare != WHITE && adjacentSquare != YELLOW && (square == BLUE || square == GREEN))
-                    superKeySCount++;
+                    superKeysCount++;
             }
 
-            return superKeySCount % 2 == 0;
+            return superKeysCount % 2 == 0;
         }
 
         #endregion

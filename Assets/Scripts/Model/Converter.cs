@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using static Model.Cubie;
 
 namespace Model
 {
@@ -213,10 +214,10 @@ namespace Model
                     int pieceIndex = CubieMap[i][j][0];
                     int squareIndex = CubieMap[i][j][1];
 
-                    var (colours, orientation) = pieces[pieceIndex];
-                    int index = NormaliseIndex(squareIndex - orientation, colours.Count);
+                    Piece piece = pieces[pieceIndex];
+                    int index = NormaliseIndex(squareIndex - piece.orientation, piece.colours.Count);
 
-                    squares.Add(colours[index]);
+                    squares.Add(piece.colours[index]);
                 }
                 
                 facelet.Add(i, squares);
