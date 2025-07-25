@@ -4,6 +4,7 @@ using Model;
 using UnityEngine;
 using Engine;
 using static UI.Square;
+using UnityEngine.UI;
 
 namespace UI
 {
@@ -21,7 +22,7 @@ namespace UI
 
         [SerializeField] private Transform piecePrefab;
 
-        [SerializeField] private float animationSpeed;
+        private float animationSpeed = 10;
 
         private Transform _rotationPlane;
 
@@ -35,11 +36,16 @@ namespace UI
 
         private List<Transform> _pieceTransformList;
 
-        [HideInInspector] public bool isOrientating = false;
+        [HideInInspector] public bool isOrientating;
 
         private readonly KeyCode[] _moveInputs = { KeyCode.U, KeyCode.D, KeyCode.F, KeyCode.B, KeyCode.R, KeyCode.L };
 
         private Solver _solver;
+
+        public void UpdateAnimationSpeed(Slider slider)
+        {
+            animationSpeed = slider.value;
+        }
 
         private void Update()
         {
@@ -64,9 +70,12 @@ namespace UI
         {
             GenerateFacelet();
             if (Validation.Validate(_facelet))
+            {
                 await _solver.SolveAsync(Converter.FaceletToCubie(_facelet), stage);
+                Manager.Instance.ToggleInvalidNotification(false);
+            }
             else
-                Debug.LogWarning("Invalid Cube");
+                Manager.Instance.ToggleInvalidNotification(true);
         }
 
         public void Shuffle()
@@ -102,7 +111,7 @@ namespace UI
         {
             if (!_initList) return;
 
-            _pieceTransformList = new();
+            _pieceTransformList = new List<Transform>();
             for (int i = 0; i < transform.childCount; i++)
                 _pieceTransformList.Add(transform.GetChild(i));
 

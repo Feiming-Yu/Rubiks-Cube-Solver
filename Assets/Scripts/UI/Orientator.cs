@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 using static System.MathF;
 
 namespace UI
@@ -7,9 +8,11 @@ namespace UI
     {
         [SerializeField] private Transform cube;
         [SerializeField] private Camera cam;
+        [SerializeField] private int snappingSpeed;
+        [SerializeField] private float rotationSpeed = 5f;
+        [SerializeField] private Slider speedSlider;
 
         private bool _isOrientating;
-        private bool _isHovering;
         private bool _isCalculated;
         private bool _isSnapping;
 
@@ -20,14 +23,20 @@ namespace UI
 
         private Quaternion _quantisedRotation;
 
-        private void OnMouseEnter()
+        private Vector2 MousePosition
         {
-            _isHovering = true;
+            get
+            {
+                // Subtracts by half of the screen size
+                // (0, 0) is the centre of the screen
+                // Useful for checking which side the mouse is on (i.e. negative x means left side)
+                return Input.mousePosition - new Vector3(Screen.width/2f, Screen.height/2f);
+            }
         }
 
-        private void OnMouseExit()
+        public void UpdateRotationSpeed()
         {
-            _isHovering = false;
+            rotationSpeed = speedSlider.value;
         }
 
         private void Update()
@@ -42,12 +51,11 @@ namespace UI
                 HandleMouseMove();
         }
 
-
         private void HandleRMBRelease()
         {
-            if (!Input.GetMouseButtonUp(1) || !_isCalculated) return;
+            if (Input.GetMouseButton(1)) return;
 
-            _isOrientating = _isCalculated = false;
+            _isOrientating = _isCalculated = Cube.Instance.isOrientating = false;
 
             _quantisedRotation = Quaternion.Euler(QuantiseVector(cube.eulerAngles));
 
@@ -57,12 +65,13 @@ namespace UI
 
         private void HandleRMBPress()
         {
-            if (!Input.GetMouseButtonDown(1) || !_isHovering || _isCalculated || _isOrientating) 
+            if (!Input.GetMouseButtonDown(1) || _isCalculated || _isOrientating) 
                 return;
 
-            _lastMousePos = _initialClickPos = GetMousePosition();
+            _lastMousePos = _initialClickPos = MousePosition;
 
-            _isOrientating = true;
+            _isOrientating = Cube.Instance.isOrientating = true;
+            
         }
 
         private void HandleRotationSnapping()
@@ -70,8 +79,7 @@ namespace UI
             if (!_isSnapping) return;
 
             // Animates the cube from its current rotation to the quantised rotation
-            // 100 used as a speed constant. Higher means faster animation
-            cube.rotation = Quaternion.RotateTowards(cube.rotation, _quantisedRotation, 300 * Time.deltaTime);
+            cube.rotation = Quaternion.RotateTowards(cube.rotation, _quantisedRotation, snappingSpeed * Time.deltaTime);
 
             // Stop animation once the current cube has reached quantised rotation
             if (cube.rotation.eulerAngles == _quantisedRotation.eulerAngles)
@@ -80,7 +88,7 @@ namespace UI
 
         private void HandleMouseMove()
         {
-            Vector2 newMousePos = GetMousePosition();
+            Vector2 newMousePos = MousePosition;
 
             // Calculation only begins if the mouse has moved
             if (newMousePos == _initialClickPos) return;
@@ -91,8 +99,9 @@ namespace UI
             // Checks if the change in mouse position is significant
             if (!_isCalculated) return;
 
-            float rotation = _dragAxis.y == 0 ? newMousePos.y - _lastMousePos.y : (newMousePos.x - _lastMousePos.x) / 2f;
-            rotation /= Time.deltaTime * 400f;
+            float rotation = _dragAxis.y == 0 ? newMousePos.y - _lastMousePos.y : (newMousePos.x - _lastMousePos.x) / 1.5f;
+            rotation *= Time.deltaTime * rotationSpeed * 40;
+
             cube.Rotate(_dragAxis, rotation, Space.World);
 
             _lastMousePos = newMousePos;
@@ -111,10 +120,8 @@ namespace UI
 
             // If the change in x-position is more significant
             if (modDelta.x > modDelta.y)
-            {
                 // Multiply by -1 as direction of rotation is opposite to mouse movement
                 _dragAxis = new Vector3(0, 1, 0) * -1;
-            }
             else
             {
                 bool isLeftSide = initialClickPos.x < 0;
@@ -130,15 +137,10 @@ namespace UI
         /// </summary>
         /// <param name="v"></param>
         /// <returns></returns>
-        private Vector2 CalculateModulusVector(Vector2 v)
-        {
-            return new Vector2(Abs(v.x), Abs(v.y));
-        }
+        private Vector2 CalculateModulusVector(Vector2 v) => new Vector2(Abs(v.x), Abs(v.y));
 
-        private Vector2 CalculateDeltaVector(Vector2 newMousePos, Vector2 initialClickPos)
-        {
-            return newMousePos - initialClickPos;
-        }
+        private Vector2 CalculateDeltaVector(Vector2 newMousePos, Vector2 initialClickPos) 
+            => newMousePos - initialClickPos;
 
         // Rounds each component to the nearest 90
         // The cube therefore remains in the same shape on the screen
@@ -149,14 +151,6 @@ namespace UI
                 Mathf.Round(vector.y / 90f),
                 Mathf.Round(vector.z / 90f)
             ) * 90f;
-        }
-
-        private Vector2 GetMousePosition()
-        {
-            // Subtracts by half of the screen's resolution
-            // (0, 0) is the centre of the screen
-            // Useful for checking which side the mouse is on (i.e. negative x means left side)
-            return Input.mousePosition - new Vector3(Screen.width / 2f, Screen.height / 2f);
         }
     }
 }

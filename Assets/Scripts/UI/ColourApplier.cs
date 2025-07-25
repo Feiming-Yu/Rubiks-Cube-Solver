@@ -5,7 +5,7 @@ namespace UI
 {
     [RequireComponent(typeof(MeshRenderer))]
     [RequireComponent(typeof(Square))]
-    public class ColourApplier : MonoBehaviour, IPointerClickHandler
+    public class ColourApplier : MonoBehaviour, IPointerDownHandler
     {
         private bool _isCentre;
 
@@ -22,24 +22,24 @@ namespace UI
 
         private Square Square => GetComponent<Square>();
 
-        public void OnPointerClick(PointerEventData eventData)
+        public void OnPointerDown(PointerEventData eventData)
         {
-            if (_isCentre) return;
-
             if (eventData.button != PointerEventData.InputButton.Left) return;
 
-            int clickCount = eventData.clickCount;
+            if (_isCentre)
+                return;
 
-            if (clickCount == 2)
-                SwitchColour();
-            else if (clickCount == 1)
-                ApplyColour();
+            ApplyColour();
         }
 
-        private void SwitchColour()
+        private void OnMouseEnter()
         {
-            Player.Instance.currentColourInput = (Colour + 1) % 6;
-            ApplyColour();
+
+            if (_isCentre)
+                return;
+
+            if (Input.GetMouseButton(0))
+                ApplyColour();
         }
 
         private void ApplyColour()
