@@ -9,8 +9,6 @@ using System.Collections.Concurrent;
 using Testing;
 using UI;
 using static Engine.Solver;
-using static UI.Cube;
-using System.Linq;
 using UnityEngine.UI;
 
 public class Manager : MonoBehaviour
@@ -34,7 +32,7 @@ public class Manager : MonoBehaviour
         public override string ToString()
         {
             return "Test Number: " + testNumber.ToString() + $"  [{DateTime.Now}]" + "\n\n" +
-                   startState.ToString() + "\n" +
+                   startState + "\n" +
                    string.Join(" ", moves) + "\n\n"
                    + "Exit Code: " + exitCode + "\n"
                    + "===================================================" + "\n\n\n";
@@ -56,11 +54,19 @@ public class Manager : MonoBehaviour
 
     public static readonly ConcurrentQueue<CubeFile> LogQueue = new();
 
-    [SerializeField] private GameObject _invalidNotification;
+    [SerializeField] private GameObject invalidNotification;
 
-    [SerializeField] private Transform _palette;
+    [SerializeField] private Transform palette;
 
-    [SerializeField] private Transform _settingsWindow, _cubeCanvas;
+    [SerializeField] private HorizontalMoveDisplay moveList;
+
+    [SerializeField] private Transform settingsWindow;
+    [SerializeField] private Transform cubeCanvas;
+    [SerializeField] private Transform editorCanvas;
+    [SerializeField] private Transform solverCanvas;
+
+    private const string LOG_DIRECTORY = @"D:\Projects\Rubik's Cube Solver\Saves\";
+    private const string LOG_FILE_PATH = @"D:\Projects\Rubik's Cube Solver\Log\Log.txt";
 
     public async void RunSuite(int frequency)
     {
@@ -75,25 +81,37 @@ public class Manager : MonoBehaviour
             Destroy(Instance);
     }
 
+
     public void Update()
     {
-        Log();
+        if (LogQueue.Count > 0)
+            Log();
     }
 
     private static void Log()
     {
-        if (LogQueue.Count <= 0) return;
-        
+        if (LogQueue.Count == 0)
+            return;
+
         if (LogQueue.Count == 1)
-            Debug.Log(@"Tests logged: D:\Projects\Rubik's Cube Solver\Saves\");
+            Debug.Log($"Tests logged: {LOG_DIRECTORY}");
 
-        // dequeue the next log entry for processing
-        LogQueue.TryDequeue(out var cubeFile);
-        
-        File.AppendAllText(@"D:\Projects\Rubik's Cube Solver\Log\Log.txt", cubeFile.ToString());
+        if (!LogQueue.TryDequeue(out var cubeFile))
+            return;
 
-        // save the failed test as a JSON file with a unique timestamped filename
-        File.WriteAllText(@$"D:\Projects\Rubik's Cube Solver\Saves\[{DateTime.Now.ToFileTime()}] test no{cubeFile.testNumber} e{(int)cubeFile.exitCode}.cube", JsonUtility.ToJson(cubeFile));
+        try
+        {
+            // Append to log file
+            File.AppendAllText(LOG_FILE_PATH, cubeFile.ToString());
+
+            // Save failed test JSON with timestamp and metadata
+            string filename = $@"{LOG_DIRECTORY}[{DateTime.Now.ToFileTime()}] test no{cubeFile.testNumber} e{(int)cubeFile.exitCode}.cube";
+            File.WriteAllText(filename, JsonUtility.ToJson(cubeFile));
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Failed to write log files: {ex.Message}");
+        }
     }
 
     public void Import()
@@ -104,8 +122,8 @@ public class Manager : MonoBehaviour
             return;
 
         CubeFile cubeFile = JsonUtility.FromJson<CubeFile>(File.ReadAllText(path[0]));
-        
         Facelet cube = cubeFile.ToFacelet();
+
         Cube.Instance.ClearQueue();
         Cube.Instance.SetFacelet(cube);
         Cube.Instance.UpdateCubie();
@@ -120,32 +138,75 @@ public class Manager : MonoBehaviour
 
     public void ToggleInvalidNotification(bool active)
     {
-        _invalidNotification.SetActive(active);
+        invalidNotification.SetActive(active);
     }
 
-    public void ResetPaletteHighlighters()
+    private void ResetPaletteHighlighters()
     {
+        int selectedColour = Player.Instance.currentColourInput;
+
         for (int i = 0; i < 6; i++)
         {
-            if (i == Player.Instance.currentColourInput)
-            {
-                _palette.GetChild(i).GetComponent<Image>().color = new Color32(94, 100, 111, 255);
-                continue;
-            }
+            Color32 color = (i == selectedColour)
+                ? new Color32(94, 100, 111, 255)
+                : new Color32(57, 60, 67, 255);
 
-            _palette.GetChild(i).GetComponent<Image>().color = new Color32(57, 60, 67, 255);
+            palette.GetChild(i).GetComponent<Image>().color = color;
         }
     }
 
     public void ShowSettings()
     {
-        _settingsWindow.gameObject.SetActive(true);
-        _cubeCanvas.gameObject.SetActive(false);
+        settingsWindow.gameObject.SetActive(true);
+        cubeCanvas.gameObject.SetActive(false);
     }
 
     public void HideSettings()
     {
-        _settingsWindow.gameObject.SetActive(false);
-        _cubeCanvas.gameObject.SetActive(true);
+        settingsWindow.gameObject.SetActive(false);
+        cubeCanvas.gameObject.SetActive(true);
+    }
+
+    public void UpdateMoveList()
+    {
+        moveList.DisplayMoves(Cube.Instance.GetSolution());
+    }
+
+    public void SwitchMoveText(bool isProgress = true)
+    {
+        if (isProgress)
+            moveList.Progress();
+        else 
+            moveList.Regress();
+    }
+
+    public void ListToStart()
+    {
+        moveList.ToStart();
+    }
+
+    public void ListToEnd()
+    {
+        moveList.ToEnd();
+    }
+
+    public void SwitchInterface()
+    {
+        editorCanvas.gameObject.SetActive(!editorCanvas.gameObject.activeSelf);
+        solverCanvas.gameObject.SetActive(!solverCanvas.gameObject.activeSelf);
+        
+        Cube.Instance.SetIsSolving(solverCanvas.gameObject.activeSelf);
+    }
+
+    public void SwitchToEditor()
+    {
+        SwitchInterface();
+        Cube.Instance.ClearQueue(); 
+        ClearMoveListChildren();
+    }
+
+    public void ClearMoveListChildren()
+    {
+        moveList.ClearDisplay();
     }
 }

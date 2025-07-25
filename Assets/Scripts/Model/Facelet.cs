@@ -26,6 +26,16 @@ namespace Model
             }
         }
 
+        public Facelet(Facelet f)
+        {
+            Faces = f.Faces;
+        }
+
+
+        public Facelet()
+        {
+        }
+        
         public Dictionary<int, List<int>> Faces = new();
 
         // D U B F L R

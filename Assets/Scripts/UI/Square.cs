@@ -69,7 +69,7 @@ namespace UI
             };
         }
 
-        public void UpdateColour()
+        public void UpdateGraphics()
         {
             MeshRenderer meshRenderer = GetComponent<MeshRenderer>();
             meshRenderer.material = squareMaterials[colour];

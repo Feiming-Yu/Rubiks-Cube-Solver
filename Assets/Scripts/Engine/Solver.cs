@@ -34,7 +34,7 @@ namespace Engine
 
         private CancellationToken _token;
 
-        private List<string> _moves;
+        public List<string> Moves { get; private set; }
 
         private readonly bool _mainThread;
 
@@ -109,7 +109,7 @@ namespace Engine
 
         private void SolveCube(int stage)
         {
-            _moves = new List<string>();
+            Moves = new List<string>();
 
             try
             {
@@ -157,7 +157,7 @@ namespace Engine
 
                 if (_mainThread)
                 {
-                    Cube.Instance.Enqueue(new Queue<string>(_moves));
+                    Cube.Instance.EnqueueSolution(new Queue<string>(Moves));
                     Debug.LogWarning("Solver status: Successful");
                 }
 
@@ -166,7 +166,7 @@ namespace Engine
             catch (Exception e) 
             {
                 Debug.LogError(e);
-                Cube.Instance.Enqueue(new Queue<string>(_moves));
+                Cube.Instance.EnqueueSolution(new Queue<string>(Moves));
                 _exitCode = EXCEPTION;
                 SaveLog();
             }
@@ -184,7 +184,7 @@ namespace Engine
                 {
                     Debug.LogWarning("[TIME OUT] Solver status: Unsuccessful");
                     // queue the correct moves prior to the error
-                    Cube.Instance.Enqueue(new Queue<string>(_moves));
+                    Cube.Instance.EnqueueSolution(new Queue<string>(Moves));
                 }
                 else
                     SaveLog();
@@ -193,7 +193,7 @@ namespace Engine
 
         private void SaveLog()
         {
-            var cubeFile = new CubeFile(_initialState, _moves, _testNumber, _exitCode);
+            var cubeFile = new CubeFile(_initialState, Moves, _testNumber, _exitCode);
             LogQueue.Enqueue(cubeFile);
         }
 
@@ -724,7 +724,7 @@ namespace Engine
                             if (rotations == 3)
                             {
                                 _solver.RemoveLastMoves(3);
-                                _solver._moves.Add("U'");
+                                _solver.Moves.Add("U'");
                             }
                             // apply algorithm to advance to next stage
                             _solver.PerformMoves(StageSwitchingMoves);
@@ -1029,19 +1029,19 @@ namespace Engine
         {
             foreach (var move in moves)
                 _cube.Move(move);
-            _moves.AddRange(moves);
+            Moves.AddRange(moves);
         }
 
         private void PerformMove(string move)
         {
             _cube.Move(move);
-            _moves.Add(move);
+            Moves.Add(move);
         }
 
         private void RemoveLastMoves(int n)
         {
 
-            _moves.RemoveRange(_moves.Count - n, n);
+            Moves.RemoveRange(Moves.Count - n, n);
         }
     }
 }

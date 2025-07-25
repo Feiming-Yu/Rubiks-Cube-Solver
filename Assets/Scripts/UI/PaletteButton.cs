@@ -1,38 +1,40 @@
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using static UI.Square;
-using UI;
 
-public class PaletteButton : MonoBehaviour
+namespace UI
 {
-    private int _colour;
-    private bool _hovering;
-
-    private void Awake()
+    public class PaletteButton : MonoBehaviour
     {
-        _colour = FaceToIndex(transform.parent.name);
-    }
+        private int _colour;
+        private bool _hovering;
 
-    public void OnMouseEnter()
-    {
-        _hovering = true;
-        transform.parent.GetComponent<Image>().color = new Color32(94, 100, 111, 255);
-    }
+        private void Awake()
+        {
+            _colour = FaceToIndex(transform.parent.name);
+        }
 
-    public void OnMouseExit()
-    {
-        _hovering = false;
-        if (_colour == Player.Instance.currentColourInput)
-            return;
-        transform.parent.GetComponent<Image>().color = new Color32(57, 60, 67, 255);
-    }
+        public void OnMouseEnter()
+        {
+            _hovering = true;
+            transform.parent.GetComponent<Image>().color = new Color32(94, 100, 111, 255);
+        }
 
-    public void OnMouseDown()
-    {
-        if (!_hovering)
+        public void OnMouseExit()
+        {
+            _hovering = false;
+            if (_colour == Player.Instance.currentColourInput)
+                return;
+
             transform.parent.GetComponent<Image>().color = new Color32(57, 60, 67, 255);
+        }
 
-        Manager.Instance.SwitchColour(_colour);
+        public void OnMouseDown()
+        {
+            if (!_hovering)
+                transform.parent.GetComponent<Image>().color = new Color32(57, 60, 67, 255);
+
+            Manager.Instance.SwitchColour(_colour);
+        }
     }
 }

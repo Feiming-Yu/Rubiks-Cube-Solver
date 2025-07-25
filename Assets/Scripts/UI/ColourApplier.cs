@@ -34,7 +34,6 @@ namespace UI
 
         private void OnMouseEnter()
         {
-
             if (_isCentre)
                 return;
 
@@ -47,8 +46,8 @@ namespace UI
             if (Colour == Player.Instance.currentColourInput) return;
 
             Colour = Player.Instance.currentColourInput;
-            Square.UpdateColour();
-            Cube.Instance.UpdateModels();
+            Square.UpdateGraphics();
+            Cube.Instance.UpdateModelsFromGraphics();
         }
     }
 }
