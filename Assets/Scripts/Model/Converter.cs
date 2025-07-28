@@ -26,12 +26,12 @@ namespace Model
         //                   | 18  17  16 |
         //                   '------------'
         // 
-        // indexes of the squares in a concatenated list from Facelet.Concat()
+        // Indexes of the squares in a concatenated list from Facelet.Concat()
         // 
 
         #region Facelet To Cubie
 
-        // indexes of squares for edge pieces
+        // Indexes of squares for edge pieces
         private static readonly int[][] EdgeFaceletMap =
         {
             new[] { 11, 41 }, // UR
@@ -48,7 +48,7 @@ namespace Model
             new[] { 19, 44 }, // BR
         };
 
-        // indexes of squares for corner pieces
+        // Indexes of squares for corner pieces
         private static readonly int[][] CornerFaceletMap =
         {
             new[] { 8 , 40, 26 }, // URF
@@ -71,7 +71,7 @@ namespace Model
             {
                 List<int> colours = new();
 
-                // iterates through the 3 squares on a corner piece
+                // Iterates through the 3 squares on a corner piece
                 for (int j = 0; j < 3; j++)
                 {
                     colours.Add(squares[CornerFaceletMap[i][j]]);
@@ -93,7 +93,7 @@ namespace Model
             {
                 List<int> colours = new();
 
-                // iterates through the 2 squares on an edge piece
+                // Iterates through the 2 squares on an edge piece
                 for (int j = 0; j < 2; j++)
                 {
                     colours.Add(squares[EdgeFaceletMap[i][j]]);
@@ -210,7 +210,9 @@ namespace Model
                 // squares on the face
                 for (int j = 0; j < 8; j++)
                 {
+                    // Corners or edges
                     var pieces = PieceTypeCubieMap[j] == 0 ? cubie.Corners : cubie.Edges;
+                    
                     int pieceIndex = CubieMap[i][j][0];
                     int squareIndex = CubieMap[i][j][1];
 
@@ -238,11 +240,8 @@ namespace Model
 
         public static int GetOtherEdgeSquareIndex(int index)
         {
-            foreach (var edge in EdgeFaceletMap)
-            {
-                if(edge.Contains(index))
-                    return edge[1 - edge.ToList().IndexOf(index)];
-            }
+            foreach (var edge in EdgeFaceletMap.Where(edge => edge.Contains(index)))
+                return edge[1 - edge.ToList().IndexOf(index)];
 
             throw new ArgumentException("Square index out of bounds");
         }

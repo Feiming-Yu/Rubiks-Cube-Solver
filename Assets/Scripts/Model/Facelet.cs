@@ -30,10 +30,14 @@ namespace Model
         {
             Faces = f.Faces;
         }
-
-
+        
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Facelet"/> class with no configuration.
+        /// This constructor is intentionally left blank and should only be used when setup is handled manually.
+        /// </summary>
         public Facelet()
         {
+            // Intentionally left blank
         }
         
         public Dictionary<int, List<int>> Faces = new();
@@ -52,15 +56,9 @@ namespace Model
             return Faces.Select(face => new SerializableFace(face.Value)).ToList();
         }
 
-        public void Add(int face, List<int> squares)
-        {
-            Faces.Add(face, squares);
-        }
+        public void Add(int face, List<int> squares) => Faces.Add(face, squares);
 
-        public void Log()
-        {
-            Debug.Log(ToString());
-        }
+        public void Log() => Debug.Log(ToString());
 
         public override string ToString()
         {

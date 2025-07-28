@@ -10,7 +10,6 @@ namespace UI
         [SerializeField] private Camera cam;
         [SerializeField] private int snappingSpeed;
         [SerializeField] private float rotationSpeed = 5f;
-        [SerializeField] private Slider speedSlider;
 
         private bool _isOrientating;
         private bool _isCalculated;
@@ -23,21 +22,13 @@ namespace UI
 
         private Quaternion _quantisedRotation;
 
-        private Vector2 MousePosition
-        {
-            get
-            {
-                // Subtracts by half of the screen size
-                // (0, 0) is the centre of the screen
-                // Useful for checking which side the mouse is on (i.e. negative x means left side)
-                return Input.mousePosition - new Vector3(Screen.width/2f, Screen.height/2f);
-            }
-        }
+        private static Vector2 MousePosition =>
+            // Subtracts by half of the screen size
+            // (0, 0) is the centre of the screen
+            // Useful for checking which side the mouse is on (i.e. negative x means left side)
+            Input.mousePosition - new Vector3(Screen.width / 2f, Screen.height / 2f);
 
-        public void UpdateRotationSpeed()
-        {
-            rotationSpeed = speedSlider.value;
-        }
+        public void UpdateRotationSpeed(Slider speedSlider) => rotationSpeed = speedSlider.value;
 
         private void Update()
         {
@@ -47,7 +38,7 @@ namespace UI
 
             HandleRMBPress();
 
-            if (_isOrientating)
+            if (_isOrientating && !Manager.Instance.isWindowOpen)
                 HandleMouseMove();
         }
 
@@ -55,6 +46,7 @@ namespace UI
         {
             if (Input.GetMouseButton(1)) return;
 
+            // Reset flags
             _isOrientating = _isCalculated = Cube.Instance.isOrientating = false;
 
             _quantisedRotation = Quaternion.Euler(QuantiseVector(cube.eulerAngles));
@@ -65,15 +57,17 @@ namespace UI
 
         private void HandleRMBPress()
         {
-            if (!Input.GetMouseButtonDown(1) || _isCalculated || _isOrientating) 
+            if (!Input.GetMouseButtonDown(1) || _isCalculated || _isOrientating || Manager.Instance.isWindowOpen) 
                 return;
 
             _lastMousePos = _initialClickPos = MousePosition;
 
             _isOrientating = Cube.Instance.isOrientating = true;
-            
         }
 
+        /// <summary>
+        /// Rotates the transform to a discrete value
+        /// </summary>
         private void HandleRotationSnapping()
         {
             if (!_isSnapping) return;
@@ -99,6 +93,7 @@ namespace UI
             // Checks if the change in mouse position is significant
             if (!_isCalculated) return;
 
+            // x-coordinate is more sensitive
             float rotation = _dragAxis.y == 0 ? newMousePos.y - _lastMousePos.y : (newMousePos.x - _lastMousePos.x) / 1.5f;
             rotation *= Time.deltaTime * rotationSpeed * 40;
 
@@ -137,14 +132,16 @@ namespace UI
         /// </summary>
         /// <param name="v"></param>
         /// <returns></returns>
-        private Vector2 CalculateModulusVector(Vector2 v) => new Vector2(Abs(v.x), Abs(v.y));
+        private static Vector2 CalculateModulusVector(Vector2 v) => new Vector2(Abs(v.x), Abs(v.y));
 
-        private Vector2 CalculateDeltaVector(Vector2 newMousePos, Vector2 initialClickPos) 
+        private static Vector2 CalculateDeltaVector(Vector2 newMousePos, Vector2 initialClickPos) 
             => newMousePos - initialClickPos;
 
-        // Rounds each component to the nearest 90
-        // The cube therefore remains in the same shape on the screen
-        private Vector3 QuantiseVector(Vector3 vector)
+        /// <summary>
+        /// Rounds each component to the nearest 90
+        /// The cube therefore remains in the same shape on the screen
+        /// </summary>
+        private static Vector3 QuantiseVector(Vector3 vector)
         {
             return new Vector3(
                 Mathf.Round(vector.x / 90f),

@@ -1,11 +1,12 @@
+using Model;
 using UnityEngine;
-using UnityEngine.EventSystems;
+using static Manager;
 
 namespace UI
 {
     [RequireComponent(typeof(MeshRenderer))]
     [RequireComponent(typeof(Square))]
-    public class ColourApplier : MonoBehaviour, IPointerDownHandler
+    public class ColourApplier : MonoBehaviour
     {
         private bool _isCentre;
 
@@ -22,31 +23,36 @@ namespace UI
 
         private Square Square => GetComponent<Square>();
 
-        public void OnPointerDown(PointerEventData eventData)
-        {
-            if (eventData.button != PointerEventData.InputButton.Left) return;
-
-            if (_isCentre)
-                return;
-
-            ApplyColour();
-        }
-
         private void OnMouseEnter()
         {
-            if (_isCentre)
-                return;
+            if (Instance.isWindowOpen || Cube.Instance.IsSolving()) return;
+
+            // Prevent modifying center squares
+            if (_isCentre) return;
 
             if (Input.GetMouseButton(0))
                 ApplyColour();
         }
+        private void OnMouseDown()
+        {
+
+            if (Instance.isWindowOpen || Cube.Instance.IsSolving()) return;
+
+            // Prevent modifying center squares
+            if (_isCentre) return;
+
+            ApplyColour();
+        }
 
         private void ApplyColour()
         {
-            if (Colour == Player.Instance.currentColourInput) return;
+            if (Instance.isWindowOpen) return;
 
-            Colour = Player.Instance.currentColourInput;
+            if (Colour == Instance.currentColourInput) return;
+
+            Colour = Instance.currentColourInput;
             Square.UpdateGraphics();
+            Cube.Instance.TrackCube();
             Cube.Instance.UpdateModelsFromGraphics();
         }
     }

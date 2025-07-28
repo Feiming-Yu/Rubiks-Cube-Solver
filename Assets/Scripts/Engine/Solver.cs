@@ -12,7 +12,6 @@ using static Model.Cubie;
 using System.Linq;
 using static Manager;
 using static Engine.Solver.ExitCode;
-using System.Drawing;
 
 namespace Engine
 {
@@ -28,16 +27,6 @@ namespace Engine
             public void Solve();
         }
 
-        private Cubie _cube;
-
-        private CancellationTokenSource _cancellationTokenSource;
-
-        private CancellationToken _token;
-
-        public List<string> Moves { get; private set; }
-
-        private readonly bool _mainThread;
-
         private WhiteCross _whiteCross;
         private WhiteCorners _whiteCorners;
         private MiddleLayer _middleLayer;
@@ -46,54 +35,23 @@ namespace Engine
         private YellowCorners _yellowCorners;
         private YellowCornerOris _yellowCornerOris;
 
+        private Cubie _cube;
+
+        private CancellationTokenSource _cancellationTokenSource;
+        private CancellationToken _token;
+        private readonly bool _mainThread;
+
         private ExitCode _exitCode;
         private readonly int _testNumber;
 
         private Facelet _initialState;
 
+        public List<string> Moves { get; private set; }
+
         public Solver(bool mainThread = true, int testNumber = -1)
         {
             _mainThread = mainThread;
             _testNumber = testNumber;
-        }
-
-        public async Task SolveAsync(Cubie cube, int stage)
-        {
-            _cube = _mainThread ? new Cubie(cube) : cube;
-            _initialState = CubieToFacelet(cube);
-            await StartThreadedSolveAsync(stage);
-        }
-
-        private async Task StartThreadedSolveAsync(int stage = 0)
-        {
-            using var cancellationTokenSource = new CancellationTokenSource();
-            _cancellationTokenSource = cancellationTokenSource;
-            _token = cancellationTokenSource.Token;
-
-            InitializeSolvers();
-
-            _exitCode = DEFAULT; // Reset exit code
-
-            // run the solving process asynchronously on a background thread
-            var solveTask = Task.Run(() => SolveCube(stage), _token);
-
-            TimeSpan timeoutDuration = TimeSpan.FromMilliseconds(500);
-            var timeoutTask = Task.Delay(timeoutDuration, _token);
-
-            // wait for either solve to complete or timeout to occur
-            var completedTask = await Task.WhenAny(solveTask, timeoutTask);
-
-            if (completedTask == timeoutTask)
-            {
-                // cancel the solving operation if timeout occurs
-                _cancellationTokenSource.Cancel();
-
-                if (_exitCode == DEFAULT)
-                    TimeOutThread();
-            }
-
-            // await the solve task to ensure full completion or cancellation handling
-            await solveTask;
         }
 
         private void InitializeSolvers()
@@ -107,58 +65,95 @@ namespace Engine
             _yellowCornerOris = new YellowCornerOris(this, _token, _cube);
         }
 
+        public Task SolveAsync(Cubie cube, int stage)
+        {
+            // Make a copy if on main thread
+            // Does not affect the main cube
+            _cube = _mainThread ? new Cubie(cube) : cube;
+            _initialState = CubieToFacelet(cube);
+
+            InitializeSolvers();
+
+            return StartThreadedSolveAsync(stage);
+        }
+
+        private async Task StartThreadedSolveAsync(int stage = 0)
+        {
+            // Automatically disposed at the end of the method
+            using var cancellationTokenSource = new CancellationTokenSource();
+            _cancellationTokenSource = cancellationTokenSource;
+            _token = cancellationTokenSource.Token;
+
+            _exitCode = DEFAULT; // Reset exit code
+
+            // Run the solving process asynchronously on a background thread
+            var solveTask = Task.Run(() => SolveCube(stage), _token);
+
+            TimeSpan timeoutDuration = TimeSpan.FromMilliseconds(500);
+            var timeoutTask = Task.Delay(timeoutDuration, _token);
+
+            // Wait for either solve to complete or timeout to occur
+            var completedTask = await Task.WhenAny(solveTask, timeoutTask);
+
+            // Solve failed if the timeoutTask is finished before the solver
+            if (completedTask == timeoutTask)
+            {
+                // cancel the solving operation if timeout occurs
+                _cancellationTokenSource.Cancel();
+
+                if (_exitCode == DEFAULT)
+                    TimeOutThread();
+            }
+
+            // Await the solve task to ensure full completion or cancellation handling
+            await solveTask;
+        }
+
         private void SolveCube(int stage)
         {
             Moves = new List<string>();
 
+
+            // Define the actions for each stage in order
+            var solverActions = new Action[]
+            {
+                () =>
+                {
+                    // Full solve (stage 0)
+                    _whiteCross.Solve();
+                    _whiteCorners.Solve();
+                    _middleLayer.Solve();
+                    _yellowCross.Solve();
+                    _yellowEdges.Solve();
+                    _yellowCorners.Solve();
+                    _yellowCornerOris.Solve();
+
+                    if (!CheckSolved())
+                        throw new Exception("Cube not solved");
+                },
+
+                // For testing
+                () => _whiteCross.Solve(),
+                () => _whiteCorners.Solve(),
+                () => _middleLayer.Solve(),
+                () => _yellowCross.Solve(),
+                () => _yellowEdges.Solve(),
+                () => _yellowCorners.Solve(),
+                () => _yellowCornerOris.Solve()
+            };
+
             try
             {
-                switch (stage)
-                {
-                    case 0:
-                        _whiteCross.Solve();
-                        _whiteCorners.Solve();
-                        _middleLayer.Solve();
-                        _yellowCross.Solve();
-                        _yellowEdges.Solve();
-                        _yellowCorners.Solve();
-                        _yellowCornerOris.Solve();
-                        if (!CheckSolved())
-                            throw new Exception("Cube not solved");
+                solverActions[stage]();
 
-                        break;
-                    case 1:
-                        _whiteCross.Solve();
-                        break;
-                    case 2:
-                        _whiteCorners.Solve();
-                        break;
-                    case 3:
-                        _middleLayer.Solve();
-                        break;
-                    case 4:
-                        _yellowCross.Solve();
-                        break;
-                    case 5:
-                        _yellowEdges.Solve();
-                        break;
-                    case 6:
-                        _yellowCorners.Solve();
-                        break;
-                    case 7:
-                        _yellowCornerOris.Solve();
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(stage), $"Invalid stage: {stage}");
-                }
-
-
+                // Check for requested cancellation
                 _token.ThrowIfCancellationRequested();
 
                 if (_mainThread)
                 {
+                    // Send to move queue
                     Cube.Instance.EnqueueSolution(new Queue<string>(Moves));
-                    Debug.LogWarning("Solver status: Successful");
+                    Debug.Log("Solver status: Successful");
                 }
 
                 _exitCode = SUCCESS;
@@ -166,7 +161,10 @@ namespace Engine
             catch (Exception e) 
             {
                 Debug.LogError(e);
+
+                // Queue the current moves to save partial progress
                 Cube.Instance.EnqueueSolution(new Queue<string>(Moves));
+
                 _exitCode = EXCEPTION;
                 SaveLog();
             }
@@ -194,6 +192,7 @@ namespace Engine
         private void SaveLog()
         {
             var cubeFile = new CubeFile(_initialState, Moves, _testNumber, _exitCode);
+            // To write
             LogQueue.Enqueue(cubeFile);
         }
 
@@ -212,6 +211,7 @@ namespace Engine
 
             public void Solve()
             {
+                // Check if already solved
                 if (CheckIfWhiteCross())
                     return;
 
@@ -224,7 +224,7 @@ namespace Engine
 
             private void SolveDaisy()
             {
-                // tracks which pieces are solved
+                // Tracks which pieces are solved
                 List<List<int>> daisyWhiteEdges = new();
 
                 while (daisyWhiteEdges.Count < 4)
@@ -234,9 +234,11 @@ namespace Engine
 
                     foreach (var edge in _cube.Edges)
                     {
+                        // Filter
                         if (!IsWhitePiece(edge.Value) || daisyWhiteEdges.Contains(edge.Value.colours))
                             continue;
 
+                        // Three possible positions
                         if (IsEdgeInTopLayer(edge) && !IsUpright(edge.Value))
                             FlipEdge(edge);
                         else if (IsEdgeInMiddleLayer(edge))
@@ -272,13 +274,13 @@ namespace Engine
                 int currentFace = SideFaces[edge.Key];
                 int leftFace = SideFaces[(edge.Key + 1) % 4];
 
-                // ensures all side rotations are clockwise
+                // Ensures all side rotations are clockwise
                 string currentPrime = currentFace != GREEN ? "'" : "";
                 string leftPrime = leftFace != GREEN ? "'" : "";
 
-
                 _solver.PerformMove(ColourToFace(currentFace) + currentPrime);
 
+                // Check if affects a solved piece
                 if (IsUprightWhitePiece(_cube.Edges[(edge.Key + 1) % 4]))
                     _solver.PerformMove("U");
 
@@ -287,8 +289,9 @@ namespace Engine
 
             private void MiddleToTop(KeyValuePair<int, Piece> edge)
             {
+                // Calculate which face to rotate
                 int whiteSquareIncrement = edge.Key % 2 == 1 ? 1 - edge.Value.orientation : edge.Value.orientation;
-
+                // by determining the index of the non-white sticker
                 int faceIndex = (edge.Key - 8 + whiteSquareIncrement) % 4;
                 int face = SideFaces[faceIndex];
 
@@ -305,8 +308,10 @@ namespace Engine
 
                 FindEmptyUSlot(faceIndex);
 
+                // Just rotate 180 degrees
                 if (edge.Value.orientation == 0)
                     _solver.PerformMove(ColourToFace(face) + "2");
+                // The white sticker is facing to the side
                 else
                 {
                     string facePrime = face == GREEN ? "'" : "";
@@ -330,6 +335,9 @@ namespace Engine
                 while (IsUprightWhitePiece(_cube.Edges[occupiedPieceIndex]))
                 {
                     UTurns++;
+
+                    // Rotate counter-clockwise
+                    // Wrap around to 3 for rotation
                     if (occupiedPieceIndex == 0)
                         occupiedPieceIndex = 3;
                     else
@@ -350,6 +358,7 @@ namespace Engine
                     if (IsWhitePiece(edge.Value) && (!IsEdgeInBottomLayer(edge) || !IsUpright(edge.Value)))
                         return false;
                 }
+                
                 return true;
             }
 
@@ -381,6 +390,7 @@ namespace Engine
 
                 int targetFaceIndex = SideFaces.IndexOf(edge.Value.colours[1]);
 
+                // Match the edge to the side faces
                 _solver.DoUTurns((targetFaceIndex - currentFaceIndex + 4) % 4);
 
                 _solver.PerformMove(ColourToFace(edge.Value.colours[1]) + "2");
@@ -404,9 +414,11 @@ namespace Engine
 
             public void Solve()
             {
-                // tracks which pieces are solved
+                // Tracks which pieces are solved
                 List<List<int>> solvedCorners = new();
 
+                // Tracks which corner is currently being solved
+                // Only storing colour sequence is necessary
                 List<int> currentWhiteCorner = null;
 
                 while (solvedCorners.Count < 4)
@@ -418,23 +430,23 @@ namespace Engine
                     {
                         var colours = corner.Value.colours;
 
-                        if (!IsWhite(colours))
+                        if (!IsWhite(colours) || IsCalculated(colours))
                             continue;
 
-                        if (!IsUnsolved(colours))
-                            continue;
-
+                        // Piece already correct but not tracked
                         if (IsAlreadySolved(corner))
                         {
                             MarkAsSolved(colours);
                             continue;
                         }
 
+                        // Solve one corner at a time
                         if (!IsCurrentWhiteCorner(colours))
                             continue;
 
                         bool isAtTop = IsTopLayer(corner.Key);
 
+                        // Position of pieces changed, re-solve this corner
                         if (isAtTop && !AlignWithHome(corner.Key, colours))
                             break;
 
@@ -453,9 +465,9 @@ namespace Engine
                         return FindHomeIndex(corner.Value.colours) == corner.Key && corner.Value.orientation == 0;
                     }
 
-                    bool IsWhite(List<int> colours) => colours.Contains(WHITE);
+                    bool IsWhite(ICollection<int> colours) => colours.Contains(WHITE);
 
-                    bool IsUnsolved(List<int> colours) => !solvedCorners.Contains(colours);
+                    bool IsCalculated(List<int> colours) => solvedCorners.Contains(colours);
 
                     bool IsCurrentWhiteCorner(List<int> colours)
                     {
@@ -510,6 +522,8 @@ namespace Engine
             private void SolveOrientatedOrMismatched(KeyValuePair<int, Piece> corner)
             {
                 bool isAtTop = corner.Key < 4;
+                // Use any algorithm (I used 1) if the white corner is in on the white face
+                // but in the wrong position or orientaiton
                 int orientation = isAtTop ? corner.Value.orientation : 1;
                 int offset = isAtTop ? 0 : -4;
                 int face = SideFaces[(corner.Key + (orientation - 1) + offset + 4) % 4];
@@ -540,7 +554,10 @@ namespace Engine
 
             public void Solve()
             {
+                // Tracks which pieces are solved
                 List<List<int>> solvedMiddleEdges = new();
+                // Tracks which corner is currently being solved
+                // Only storing colour sequence is necessary
                 List<int> currentMiddleEdge = null;
 
                 while (solvedMiddleEdges.Count < 4)
@@ -552,18 +569,19 @@ namespace Engine
                     {
                         if (_token.IsCancellationRequested)
                             _token.ThrowIfCancellationRequested();
+
                         var colours = edge.Value.colours;
                         int edgeIndex = edge.Key;
                         int orientation = edge.Value.orientation;
                         bool isAtTop = edgeIndex < 4;
 
                         // filter out non-eligible edges
-                        if (IsAlreadySolved(colours)) continue;
+                        if (IsCalculated(colours)) continue;
                         if (ContainsWhiteOrYellow(colours)) continue;
                         if (!IsCurrentTarget(colours)) continue;
 
                         // check if edge is solved in correct position
-                        if (IsCorrectlyPlaced(edgeIndex, orientation, colours))
+                        if (IsSolved(edgeIndex, orientation, colours))
                             break;
 
                         // attempt insertion if edge is in top layer
@@ -577,7 +595,7 @@ namespace Engine
 
                     #region HELPERS
 
-                    bool IsAlreadySolved(IReadOnlyCollection<int> colours) => solvedMiddleEdges.Any(edge => edge.SequenceEqual(colours));
+                    bool IsCalculated(IReadOnlyCollection<int> colours) => solvedMiddleEdges.Any(edge => edge.SequenceEqual(colours));
 
                     bool ContainsWhiteOrYellow(ICollection<int> colours) => colours.Contains(WHITE) || colours.Contains(YELLOW);
 
@@ -587,7 +605,7 @@ namespace Engine
                         return colours.SequenceEqual(currentMiddleEdge);
                     }
 
-                    bool IsCorrectlyPlaced(int edgeIndex, int orientation, List<int> colours)
+                    bool IsSolved(int edgeIndex, int orientation, List<int> colours)
                     {
                         if (orientation == FindHomeOrientation(colours) &&
                             edgeIndex == FindHomeIndex(colours))
@@ -719,20 +737,19 @@ namespace Engine
                     // check if current face matches any yellow cross stage
                     if (TryMatchStage(topFace, rotations, out bool solved))
                     {
-                        if (!solved)
+                        if (solved) return true;
+                        
+                        if (rotations == 3)
                         {
-                            if (rotations == 3)
-                            {
-                                _solver.RemoveLastMoves(3);
-                                _solver.Moves.Add("U'");
-                            }
-                            // apply algorithm to advance to next stage
-                            _solver.PerformMoves(StageSwitchingMoves);
-                            break;
+                            _solver.RemoveLastMoves(3);
+                            _solver.Moves.Add("U'");
                         }
+                            
+                        // apply algorithm to advance to next stage
+                        _solver.PerformMoves(StageSwitchingMoves);
+                        break;
 
                         // already solved
-                        return true;
                     }
 
                     // rotate top face and retry
@@ -816,17 +833,18 @@ namespace Engine
 
             private List<int> GetSolvedEdgeIndices()
             {
+                // Tracks which pieces are solved
                 var solvedEdges = new List<int>();
 
                 for (int currentEdge = 0; currentEdge < 4; currentEdge++)
                 {
-                    // wrap index to next edge
+                    // Wrap index to next edge
                     int nextEdge = (currentEdge + 1) % 4;
 
                     int difference = SideFaces.IndexOf(_cube.Edges[nextEdge].colours[1]) -
                                      SideFaces.IndexOf(_cube.Edges[currentEdge].colours[1]);
 
-                    // check if edges are adjacent in expected order
+                    // Check if edges are adjacent in expected order
                     if (difference is 1 or -3)
                     {
                         solvedEdges.Add(nextEdge);
@@ -839,10 +857,12 @@ namespace Engine
 
             private void HandleTwoSolvedEdges(IReadOnlyList<int> solvedEdgeIndices)
             {
+                // Most clockwise piece
                 int first = solvedEdgeIndices[0];
+                // Most anticlockwise piece
                 int second = solvedEdgeIndices[1];
 
-                // if edges are separated oddly, align before swapping
+                // If edges are separated oddly, align before swapping
                 if (Math.Abs(first - second) % 2 != 0)
                 {
                     _solver.DoUTurns((0 - first + 4) % 4);
@@ -852,7 +872,11 @@ namespace Engine
                 else
                     _solver.PerformMoves(_edgeSwapMoves);
             }
-
+            
+            /// <summary>
+            /// Aligns the edges to the sides if already solved.
+            /// </summary>
+            /// <param name="index">The colour of the edge at edge position 0</param>
             private void HandleAllSolvedEdges(int index)
             {
                 int faceIndex = SideFaces.IndexOf(_cube.Edges[index].colours[1]);
@@ -893,12 +917,14 @@ namespace Engine
                     case 1:
                     case 2:
                         AlignCube(positionedCorners[0]);
-                        PerformCornerCycles(2);
+                        PerformCornerCycles();
                         RealignCube(positionedCorners[0]);
+                        // Recursive to check if solved 
                         Solve();
                         break;
                     case 0:
-                        PerformCornerCycles(2);
+                        PerformCornerCycles();
+                        // Recursive to check if solved 
                         Solve();
                         break;
                 }
@@ -930,10 +956,10 @@ namespace Engine
                 _solver.DoUTurns(turns);
             }
 
-            private void PerformCornerCycles(int times)
+            private void PerformCornerCycles()
             {
-                for (int i = 0; i < times; i++)
-                    _solver.PerformMoves(_cornerCyclingMoves);
+                _solver.PerformMoves(_cornerCyclingMoves);
+                _solver.PerformMoves(_cornerCyclingMoves);
             }
 
             #endregion
@@ -959,35 +985,42 @@ namespace Engine
 
             public void Solve()
             {
+                // Tracks which pieces are solved
                 List<List<int>> solvedCorners = new();
 
                 for (int i = 0; i < 4; i++)
                 {
-
                     if (_token.IsCancellationRequested)
                         _token.ThrowIfCancellationRequested();
 
+                    // Already solved
                     if (solvedCorners.Count == 4)
                         break;
 
-                    if (IsSolved(_cube.Corners[i].colours))
+                    if (IsCalculated(_cube.Corners[i].colours))
                         continue;
 
+                    // Solved
                     if (_cube.Corners[i].orientation == 0)
                     {
                         solvedCorners.Add(_cube.Corners[i].colours);
                         continue;
                     }
 
+                    // Position the unsolved corner
                     _solver.DoUTurns(4 - i);
+                    // Then solve it
                     _solver.PerformMoves(_cornerOrientationMoves);
 
+                    // Recheck corners
                     i = -1;
                 }
 
+                // Final steps
                 AlignTopLayer();
+                return;
 
-                bool IsSolved(List<int> colours) => solvedCorners.Contains(colours);
+                bool IsCalculated(List<int> colours) => solvedCorners.Contains(colours);
             }
 
             private void AlignTopLayer()
@@ -995,10 +1028,12 @@ namespace Engine
                 int turns = (SideFaces.IndexOf(_cube.Edges[0].colours[1])) % 4;
                 _solver.DoUTurns(turns);
             }
-
-
         }
 
+        /// <summary>
+        /// Final check if the cube is solved correctly
+        /// </summary>
+        /// <returns></returns>
         private bool CheckSolved()
         {
             for (int i = 0; i < 12; i++)
@@ -1018,6 +1053,7 @@ namespace Engine
         {
             PerformMoves(UTurns switch
             {
+                // 270 degree rotation C is equal to a 90 degree rotation AC
                 3 => new List<string> { "U'" },
                 2 => new List<string> { "U2" },
                 1 => new List<string> { "U" },
@@ -1034,14 +1070,12 @@ namespace Engine
 
         private void PerformMove(string move)
         {
+            // Update the cube
             _cube.Move(move);
+            // Add to solution
             Moves.Add(move);
         }
 
-        private void RemoveLastMoves(int n)
-        {
-
-            Moves.RemoveRange(Moves.Count - n, n);
-        }
+        private void RemoveLastMoves(int n) => Moves.RemoveRange(Moves.Count - n, n);
     }
 }

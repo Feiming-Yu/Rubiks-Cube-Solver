@@ -10,7 +10,6 @@ namespace Model
 {
     public class Cubie
     {
-
         public struct Piece
         {
             public int orientation;
@@ -76,16 +75,16 @@ namespace Model
             }
         );
 
-        public Cubie(Dictionary<int, Piece> corners, Dictionary<int, Piece> edges)
+        public Cubie(IDictionary<int, Piece> corners, IDictionary<int, Piece> edges)
         {
-            Corners = new(corners);
-            Edges = new(edges);
+            Corners = new Dictionary<int, Piece>(corners);
+            Edges = new Dictionary<int, Piece>(edges);
         }
 
         public Cubie(Cubie cube)
         {
-            Corners = new(cube.Corners);
-            Edges = new(cube.Edges);
+            Corners = new Dictionary<int, Piece>(cube.Corners);
+            Edges = new Dictionary<int, Piece>(cube.Edges);
         }
 
         public Cubie()
@@ -96,31 +95,31 @@ namespace Model
 
         public void Add(int index, List<int> colours, int orientation)
         {
-            (colours.Count == 3 ? Corners : Edges).Add(index, new (colours, orientation));
+            (colours.Count == 3 ? Corners : Edges).Add(index, new Piece(colours, orientation));
         }
 
+        [CanBeNull]
         public static List<int> FindHomeColours(List<int> colours)
         {
-            // validity check for correct number of colours
+            // Validity check for correct number of colours
             if (colours.Count != 2 && colours.Count != 3)
                 throw new ArgumentException("Impossible piece");
 
             var index = FindHomeIndex(colours);
 
-            // identify which to search
+            // Identify which to search
             var pieces = colours.Count == 2 ? Identity.Edges : Identity.Corners;
 
-            return index == -1 ? null : new(pieces[index].colours);
+            return index == -1 ? null : new List<int>(pieces[index].colours);
         }
 
         public static int FindHomeIndex(List<int> colours)
         {
             var pieces = colours.Count == 2 ? Identity.Edges : Identity.Corners;
 
-            foreach (var kvp in pieces)
-                // check if colours are matching, ignoring order
-                if (kvp.Value.colours.All(colours.Contains))
-                    return kvp.Key;
+            // Search for matching colour sequence
+            foreach (var kvp in pieces.Where(kvp => kvp.Value.colours.All(colours.Contains)))
+                return kvp.Key;
 
             Debug.LogWarning("Piece not found");
             return -1;
@@ -130,10 +129,9 @@ namespace Model
         {
             var pieces = colours.Count == 2 ? Identity.Edges : Identity.Corners;
 
-            foreach (var kvp in pieces)
-                // check if colours are matching, ignoring order
-                if (kvp.Value.colours.All(colours.Contains))
-                    return kvp.Value.orientation;
+            // Check if colours are matching, ignoring order
+            foreach (var kvp in pieces.Where(kvp => kvp.Value.colours.All(colours.Contains)))
+                return kvp.Value.orientation;
 
             Debug.LogWarning("Piece not found");
             return -1;
@@ -145,22 +143,22 @@ namespace Model
 
             for (int i = 0; i < 3; i++)
             {
-                // check if order of colours are matching
+                // Check if order of colours are matching
                 if (data.SequenceEqual(original))
                     return orientation;
 
-                // needs a rotation to match
+                // Needs a rotation to match
                 orientation++;
 
-                // list of colours is a circular structure
-                // shifts all colours to the right, moves last item to start
-                // this is equivalent to one clockwise rotation of the piece
+                // List of colours is a circular structure
+                // Shifts all colours to the right, moves last item to start
+                // This is equivalent to one clockwise rotation of the piece
                 data.Add(data[0]);
                 data.RemoveAt(0);
             }
 
-            // colours are matching but sequence will never match
-            // unexpected error
+            // Colours are matching but sequence will never match
+            // Unexpected error
             Debug.LogWarning("Invalid piece sequence");
             return -1;
         }
@@ -220,7 +218,7 @@ namespace Model
 
             string layer = move[0].ToString(); 
             
-            // identify if the move is followed by a prime (') or double (2)
+            // Identify if the move is followed by a prime (') or double (2)
             string special = move[^1].ToString();
 
             RotateLayer(layer, special == "'", special == "2");
@@ -234,16 +232,21 @@ namespace Model
 
         private static void RotatePieces((int[] indexes, int[] orientationDelta) moveInfo, IDictionary<int, Piece> pieces, bool prime, bool twice)
         {
-            // Prime and twice are mutually exclusive, U'2 == U2
-            if (prime && twice)
-                throw new ArgumentException("Prime and twice must be mutually exclusive");
-
-            if (prime)
-                PrimeRotatePieces(moveInfo, pieces);
-            else if (twice)
-                DoubleRotatePieces(moveInfo, pieces);
-            else
-                NormalRotatePieces(moveInfo, pieces);
+            switch (prime)
+            {
+                // Prime and twice are mutually exclusive, U'2 == U2
+                case true when twice:
+                    throw new ArgumentException("Prime and twice must be mutually exclusive");
+                case true:
+                    PrimeRotatePieces(moveInfo, pieces);
+                    break;
+                default:
+                    if (twice)
+                        DoubleRotatePieces(moveInfo, pieces);
+                    else
+                        NormalRotatePieces(moveInfo, pieces);
+                    break;
+            }
         }
 
         private static void NormalRotatePieces((int[] indexes, int[] orientationDelta) moveInfo, IDictionary<int, Piece> pieces)
@@ -291,7 +294,7 @@ namespace Model
 
         private static Piece Reorientate(Piece piece, int orientationDelta)
         {
-            return new (piece.colours, (piece.orientation + orientationDelta) % piece.colours.Count);
+            return new Piece(piece.colours, (piece.orientation + orientationDelta) % piece.colours.Count);
         }
 
         #endregion
@@ -307,22 +310,15 @@ namespace Model
             {
                 string move = ColourToFace(r.Next(0, 5));
 
+                // Avoid moving the same face twice
                 if (move == lastFaceMoved[0].ToString()) continue;
 
                 lastFaceMoved = move;
-                switch (r.Next(0, 10))
-                {
-                    case 0:
-                    case 2:
-                    case 3:
-                        move += "'";
-                        break;
-                    case 1:
-                        move += "2";
-                        break;
-                    default:
-                        break;
-                }
+                
+                int rand = r.Next(0, 10);
+                // 30% chance for counter-clockwise
+                // 10% chance for double turn
+                move += rand <= 2 ? "'" : rand == 3 ? "2" : "";
 
                 Move(move);
             }

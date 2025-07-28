@@ -54,19 +54,34 @@ public class Manager : MonoBehaviour
 
     public static readonly ConcurrentQueue<CubeFile> LogQueue = new();
 
-    [SerializeField] private GameObject invalidNotification;
-
     [SerializeField] private Transform palette;
 
     [SerializeField] private HorizontalMoveDisplay moveList;
 
+    [SerializeField] private Transform importButton;
+
+    [Header("Interfaces")] 
     [SerializeField] private Transform settingsWindow;
     [SerializeField] private Transform cubeCanvas;
     [SerializeField] private Transform editorCanvas;
     [SerializeField] private Transform solverCanvas;
+    [SerializeField] private Transform fileWindow;
+
+    [Header("Theme")]
+    public Theme[] themes;
+    public Button[] mainButtons, windowButtons, closeButtons;
+    public Camera mainCamera;
+    public Image[] windowBackgrounds;
+    public TMPro.TextMeshProUGUI[] texts;
+    public Slider[] sliders;
+    public PaletteButton[] paletteButtons;
 
     private const string LOG_DIRECTORY = @"D:\Projects\Rubik's Cube Solver\Saves\";
     private const string LOG_FILE_PATH = @"D:\Projects\Rubik's Cube Solver\Log\Log.txt";
+    
+    [HideInInspector] public bool isWindowOpen;
+    [HideInInspector] public int currentThemeIndex;
+    [HideInInspector] public int currentColourInput = Square.Colour.WHITE;
 
     public async void RunSuite(int frequency)
     {
@@ -84,11 +99,12 @@ public class Manager : MonoBehaviour
 
     public void Update()
     {
-        if (LogQueue.Count > 0)
-            Log();
+        HandleLogs();
     }
 
-    private static void Log()
+    #region File Handling
+    
+    private static void HandleLogs()
     {
         if (LogQueue.Count == 0)
             return;
@@ -116,7 +132,7 @@ public class Manager : MonoBehaviour
 
     public void Import()
     {
-        var path = StandaloneFileBrowser.OpenFilePanel("Open File", "", "cube", false);
+        var path = StandaloneFileBrowser.OpenFilePanel("Open Cube", "", "cube", false);
 
         if (path.Length == 0)
             return;
@@ -124,70 +140,73 @@ public class Manager : MonoBehaviour
         CubeFile cubeFile = JsonUtility.FromJson<CubeFile>(File.ReadAllText(path[0]));
         Facelet cube = cubeFile.ToFacelet();
 
+        Cube.Instance.TrackCube();
         Cube.Instance.ClearQueue();
         Cube.Instance.SetFacelet(cube);
         Cube.Instance.UpdateCubie();
         Cube.Instance.SetColours(cube);
     }
-
-    public void SwitchColour(int colour)
+    
+    public void Export()
     {
-        Player.Instance.currentColourInput = colour;
-        ResetPaletteHighlighters();
+        var cubeFile = new CubeFile(
+            Cube.Instance.GetFacelet(), 
+            Cube.Instance.GetSolution(), 
+            -1, 
+            (ExitCode)(-1));
+
+
+        var path = StandaloneFileBrowser.SaveFilePanel("Save Cube", "", "", "cube");
+
+        if (path.Length == 0)
+            return;
+
+        File.WriteAllText(path, JsonUtility.ToJson(cubeFile));
     }
-
-    public void ToggleInvalidNotification(bool active)
+    
+    #endregion
+    
+    public void SwitchInputColour(int colour)
     {
-        invalidNotification.SetActive(active);
+        Instance.currentColourInput = colour;
+        ResetPaletteHighlighters();
     }
 
     private void ResetPaletteHighlighters()
     {
-        int selectedColour = Player.Instance.currentColourInput;
-
         for (int i = 0; i < 6; i++)
-        {
-            Color32 color = (i == selectedColour)
-                ? new Color32(94, 100, 111, 255)
-                : new Color32(57, 60, 67, 255);
-
-            palette.GetChild(i).GetComponent<Image>().color = color;
-        }
+            palette.GetChild(i).GetChild(0).GetComponent<PaletteButton>().UpdateColour();
     }
 
+    #region Window Management
+    
     public void ShowSettings()
     {
         settingsWindow.gameObject.SetActive(true);
-        cubeCanvas.gameObject.SetActive(false);
+
+        isWindowOpen = true;
     }
 
     public void HideSettings()
     {
         settingsWindow.gameObject.SetActive(false);
-        cubeCanvas.gameObject.SetActive(true);
+
+        isWindowOpen = false;
+    }
+    
+    public void ShowFile()
+    {
+        fileWindow.gameObject.SetActive(true);
+        importButton.gameObject.SetActive(!Cube.Instance.IsSolving());
+
+        isWindowOpen = true;
     }
 
-    public void UpdateMoveList()
+    public void HideFile()
     {
-        moveList.DisplayMoves(Cube.Instance.GetSolution());
-    }
+        fileWindow.gameObject.SetActive(false);
 
-    public void SwitchMoveText(bool isProgress = true)
-    {
-        if (isProgress)
-            moveList.Progress();
-        else 
-            moveList.Regress();
-    }
-
-    public void ListToStart()
-    {
-        moveList.ToStart();
-    }
-
-    public void ListToEnd()
-    {
-        moveList.ToEnd();
+        isWindowOpen = false;
     }
 
     public void SwitchInterface()
@@ -201,12 +220,95 @@ public class Manager : MonoBehaviour
     public void SwitchToEditor()
     {
         SwitchInterface();
+        
         Cube.Instance.ClearQueue(); 
         ClearMoveListChildren();
+
+        Cube.Instance.TurnOffAutomation();
+    }
+    
+    #endregion
+    
+    #region Move List
+    
+    public void UpdateMoveList() => moveList.DisplayMoves(Cube.Instance.GetSolution());
+
+    public void SwitchMoveText(bool isProgress = true)
+    {
+        if (isProgress) moveList.Progress();
+        else moveList.Regress();
     }
 
-    public void ClearMoveListChildren()
+    public void ListToStart() => moveList.ToStart();
+
+    public void ListToEnd() => moveList.ToEnd();
+
+    private void ClearMoveListChildren() => moveList.ClearDisplay();
+    
+    #endregion
+
+    public void SwitchTheme(TMPro.TMP_Dropdown dropdown)
     {
-        moveList.ClearDisplay();
+        currentThemeIndex = dropdown.value;
+
+        Theme theme = themes[currentThemeIndex];
+
+        mainCamera.backgroundColor = theme.primary;
+
+        foreach (var mainButton in mainButtons)
+        {
+            ColorBlock colorBlock = mainButton.colors;
+            colorBlock.normalColor = theme.secondary;
+            colorBlock.highlightedColor = theme.highlightPrimary;
+            colorBlock.pressedColor = theme.selected;
+            mainButton.colors = colorBlock;
+
+            mainButton.transform.GetChild(0).GetComponent<TMPro.TextMeshProUGUI>().color = theme.opposite;
+        }
+
+        foreach (var windowButton in windowButtons)
+        {
+            ColorBlock colorBlock = windowButton.colors;
+            colorBlock.normalColor = theme.tertiary;
+            colorBlock.highlightedColor = theme.highlightSecondary;
+            colorBlock.pressedColor = theme.selected;
+            windowButton.colors = colorBlock;
+
+            windowButton.transform.GetChild(0).GetComponent<TMPro.TextMeshProUGUI>().color = theme.opposite;
+        }
+
+        foreach (var closeButton in closeButtons)
+        {
+            ColorBlock colorBlock = closeButton.colors;
+            colorBlock.normalColor = theme.tertiary;
+            closeButton.colors = colorBlock;
+        }    
+
+        foreach (var windowBackground in windowBackgrounds)
+        {
+            windowBackground.color = theme.secondary;
+        }
+
+        foreach (var text in texts)
+        {
+            text.color = theme.opposite;
+        }
+
+        foreach (var slider in sliders)
+        {
+            slider.transform.GetChild(1).GetComponent<Image>().color = theme.tertiary;
+
+            ColorBlock colorBlock = slider.colors;
+            colorBlock.normalColor = theme.opposite;
+            colorBlock.highlightedColor = theme.oppositeSecondary;
+            colorBlock.pressedColor = theme.selected;
+            slider.colors = colorBlock;
+
+            slider.transform.GetChild(2).GetChild(0).GetComponent<Image>().color = theme.opposite;
+
+            slider.transform.GetChild(0).GetComponent<TMPro.TextMeshProUGUI>().color = theme.opposite;
+        }
+
+        moveList.UpdateColours();
     }
 }

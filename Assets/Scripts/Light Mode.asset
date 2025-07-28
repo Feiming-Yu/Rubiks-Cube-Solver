@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d953be9e235002c42b287bf763b50e01, type: 3}
+  m_Name: Light Mode
+  m_EditorClassIdentifier: 
+  primary: {r: 1, g: 1, b: 1, a: 1}
+  secondary: {r: 0.9056604, g: 0.9056604, b: 0.9056604, a: 1}
+  tertiary: {r: 0.745283, g: 0.745283, b: 0.745283, a: 1}
+  highlightPrimary: {r: 0.74509805, g: 0.74509805, b: 0.74509805, a: 1}
+  highlightSecondary: {r: 0.6603774, g: 0.6603774, b: 0.6603774, a: 1}
+  selected: {r: 0.7169812, g: 0.38216448, b: 0.38216448, a: 1}
+  opposite: {r: 0.3504806, g: 0.37740296, b: 0.41509432, a: 1}
+  oppositeSecondary: {r: 0.5159309, g: 0.5402749, b: 0.5849056, a: 1}
