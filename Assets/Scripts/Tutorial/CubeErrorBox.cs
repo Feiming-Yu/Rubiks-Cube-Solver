@@ -1,52 +1,55 @@
 using System.Collections;
 using UnityEngine;
 
-public class CubeErrorBox : MonoBehaviour
+namespace Tutorial
 {
-    [SerializeField] private TMPro.TextMeshProUGUI body;
-
-    private readonly Vector3 hiddenPos = new(-160f, -15f, 0f);
-    private readonly Vector3 visiblePos = new(-64.75f, -15f, 0f);
-
-    // singleton instance
-    public static CubeErrorBox Instance;
-
-    private void Start()
+    public class CubeErrorBox : MonoBehaviour
     {
-        if (Instance == null)
-            Instance = this;
-        else
-            Destroy(Instance);
-    }
+        [SerializeField] private TMPro.TextMeshProUGUI body;
 
-    private void UpdateMessage()
-    {
-        body.text = Engine.Validation.InvalidCubeException.Message;
-    }
+        private static readonly Vector3 HiddenPos = new(-160f, -15f, 0f);
+        private static readonly Vector3 VisiblePos = new(-64.75f, -15f, 0f);
 
-    public void Show()
-    {
-        UpdateMessage();
-        StartCoroutine(Animate(transform.localPosition, visiblePos, 0.1f));
-    }
+        // singleton instance
+        public static CubeErrorBox Instance;
 
-    public void Hide()
-    {
-        StartCoroutine(Animate(transform.localPosition, hiddenPos, 0.1f));
-    }
-
-    private IEnumerator Animate(Vector3 from, Vector3 to, float time)
-    {
-        float elapsed = 0f;
-
-        while (elapsed < time)
+        private void Start()
         {
-            transform.localPosition = Vector3.Lerp(from, to, elapsed / time);
-            elapsed += Time.deltaTime;
-            yield return null;
+            if (Instance == null)
+                Instance = this;
+            else
+                Destroy(Instance);
         }
 
-        transform.localPosition = to;
-    }
+        private void UpdateMessage()
+        {
+            body.text = Engine.Validation.InvalidCubeException.Message;
+        }
 
+        public void Show()
+        {
+            UpdateMessage();
+            StartCoroutine(Animate(transform.localPosition, VisiblePos, 0.1f));
+        }
+
+        public void Hide()
+        {
+            StartCoroutine(Animate(transform.localPosition, HiddenPos, 0.1f));
+        }
+
+        private IEnumerator Animate(Vector3 from, Vector3 to, float time)
+        {
+            float elapsed = 0f;
+
+            while (elapsed < time)
+            {
+                transform.localPosition = Vector3.Lerp(from, to, elapsed / time);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            transform.localPosition = to;
+        }
+
+    }
 }

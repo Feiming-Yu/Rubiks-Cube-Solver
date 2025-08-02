@@ -7,6 +7,8 @@ using UnityEngine;
 using Engine;
 using static UI.Square;
 using UnityEngine.UI;
+using Tutorial;
+using static Model.Cubie;
 
 namespace UI
 {
@@ -24,6 +26,7 @@ namespace UI
         }
 
         [SerializeField] private Transform piecePrefab;
+        [SerializeField] private Material normalBody, highlightedBody;
 
         public float animationSpeed = 10;
         [HideInInspector] public bool isOrientating;
@@ -36,9 +39,9 @@ namespace UI
 
         // state management
         private bool _initList;    // Flag to trigger initialization of piece transform list
-        private bool _newSolution; // Indicates a new solution has been loaded
+        private bool _newSolution; // Indicates a new solution has been 
         private bool _isSolving;   // Whether the solver is currently solving
-        private bool _isReset;     // Whether the cube is currently resetting colors
+        private bool _isScrambling;// Whether the currently shuffling
 
         // lists
         private List<int> _movedPieceIndexes = new();
@@ -54,7 +57,7 @@ namespace UI
         // solver
         private Solver _solver;
 
-        private List<Facelet> _previousFacelets = new();
+        private readonly List<Facelet> _previousFacelets = new();
 
         private void Start()
         {
@@ -109,23 +112,24 @@ namespace UI
         
         public void ResetColours()
         {
-            if (_moveQueue.Count != _currentIndex || _isAnimating)
+            if (_currentIndex != _moveQueue.Count || _isAnimating || _isSolving)
                 return;
                 
             _moveQueue.Clear();
-            _isReset = true;
-        }
 
-        private void HandleResetColours()
-        {
             // Reset the logical cube to solved state
-            SetCubie(Cubie.Identity);
+            SetCubie(Identity);
             UpdateFacelet();
 
             // Update the colors on the graphical model
             SetColours(_facelet);
-            _isReset = false;
+
+            _currentIndex = 0;
+
+            _previousFacelets.Clear();
         }
+
+        public bool IsCubeBusy => _currentIndex != _moveQueue.Count || _isAnimating || _isSolving;
 
         // Maps face indices to the indexes of the pieces on that face
         private static readonly int[][] ColourPieceMap =
@@ -174,7 +178,7 @@ namespace UI
                     );
             }
         }
-        
+
         /// <summary>
         /// Updates the color of all squares on the graphical cube based on a Facelet model.
         /// </summary>
@@ -222,6 +226,43 @@ namespace UI
         public void TrackCube()
         {
             _previousFacelets.Add(new Facelet(_facelet));
+        }
+
+        private List<int> _highlightedPieceColours = new();
+
+        public void SetHighlightedPiece()
+        {
+            _highlightedPieceColours = new List<int>(_currentSequence.InterestPiece);
+            
+            TryHighlightPiece();
+        }
+
+        public void RemoveHighlightedPiece()
+        {
+            _highlightedPieceColours.Clear();
+            TryHighlightPiece();
+        }
+
+        private void TryHighlightPiece()
+        {
+            int count = _highlightedPieceColours.Count;
+
+            if (count == 0) count = 3;
+
+
+            foreach (var piece in count == 3 ? _cubie.Corners : _cubie.Edges)
+            {
+                bool match = new HashSet<int>(piece.Value.colours).SetEquals(_highlightedPieceColours);
+                print(string.Join("", piece.Value.colours) + " " + string.Join("", _highlightedPieceColours));
+                _pieceTransformList[CubieIndexToGraphicIndex[piece.Key][count - 2]]
+                    .GetComponent<MeshRenderer>().material = match ? highlightedBody : normalBody;
+            }
+
+            foreach (var piece in count == 3 ? _cubie.Edges : _cubie.Corners)
+            {
+                _pieceTransformList[CubieIndexToGraphicIndex[piece.Key][1 - (count - 2)]]
+                    .GetComponent<MeshRenderer>().material = normalBody;
+            }
         }
 
         #endregion
@@ -297,7 +338,6 @@ namespace UI
 
                 _startingFacelet = new Facelet(_facelet);
 
-
                 await _solver.SolveAsync(FaceletToCubie(_facelet), stage);
 
                 CubeErrorBox.Instance.Hide();
@@ -334,6 +374,7 @@ namespace UI
 
             int total = r.Next(60, 80);
 
+            _isScrambling = true;
             for (int i = 0; i < total; i++)
             {
                 string move = ColourToFace(r.Next(0, 6));
@@ -353,22 +394,19 @@ namespace UI
             if (_isSolving || Manager.Instance.isWindowOpen)
                 return;
 
-            foreach (KeyCode key in _moveInputs)
+            foreach (var key in _moveInputs.Where(Input.GetKeyDown))
             {
-                if (Input.GetKeyDown(key))
-                {
-                    TrackCube();
+                TrackCube();
 
-                    bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-                    bool alt = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
+                bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+                bool alt = Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt);
 
-                    string move = key.ToString();
-                    if (shift) move += "'";
-                    if (alt) move += "2";
+                string move = key.ToString();
+                if (shift) move += "'";
+                if (alt) move += "2";
 
-                    Enqueue(move);
-                    break;
-                }
+                Enqueue(move);
+                break;
             }
         }
 
@@ -378,14 +416,17 @@ namespace UI
 
         public void Enqueue(string move) => _moveQueue.Add(move);
 
-        public void EnqueueSolution(Queue<string> moves)
+        public void EnqueueSolution(IEnumerable<Sequence> solution)
         {
-            while (moves.Count > 0)
-                _moveQueue.Add(moves.Dequeue());
+            _solution = new List<Sequence>(solution);
             _newSolution = true;
         }
 
-        public List<string> GetSolution() => _solver.Moves;
+        public List<Sequence> GetSolution() => _solution;
+
+        public List<string> GetCurrentMoveQueue() => _moveQueue;
+
+        public int GetCurrentIndex() => _currentIndex;
 
         #endregion
 
@@ -396,10 +437,14 @@ namespace UI
 
         private bool _isAnimating;
 
-        private readonly List<string> _moveQueue = new();
-        private int _currentIndex = 0;
+        private List<string> _moveQueue = new();
+        private List<Sequence> _solution = new();
+        private Sequence _currentSequence;
+        private Sequence _wholeSequence;
+        private int _currentSequenceIndex;
+        private int _currentIndex;
         private string _currentMove;
-        private bool isProgressing = true;
+        private bool _isProgressing = true;
 
         // Indexes of centrepieces
         private readonly int[] _centrePieces = { 10, 16, 22, 4, 14, 12 };
@@ -407,24 +452,78 @@ namespace UI
         public void ClearQueue()
         {
             _moveQueue.Clear();
+            _solution.Clear();
+            _currentSequence = null;
             _currentIndex = 0;
+            _currentSequenceIndex = 0;
         }
+
+        public string GetCurrentMove() => _currentMove;
+
+        public Sequence GetCurrentSequence() => _currentSequence;
 
         private void Move()
         {
-            isProgressing = true;
-            BeginMove(_moveQueue[_currentIndex]);
-            _currentIndex++;
+            if (_currentIndex >= _moveQueue.Count)
+                return;
+
+            _isProgressing = true;
+            string move = GetNextMove();
+            if (move == "") return;
+
+            BeginMove(move);
         }
 
         private void Unmove()
         {
-            isProgressing = false;
-            _currentIndex--;
-            string move = ReverseMove(_moveQueue[_currentIndex]);
+            _isProgressing = false;
+            string move = GetPreviousMove();
+            if (move == "") return;
+
+            move = ReverseMove(move);
             BeginMove(move);
-            Manager.Instance.SwitchMoveText(false);
         }
+
+        private string GetNextMove()
+        {
+            return _moveQueue[_currentIndex];
+        }
+
+        private string GetPreviousMove()
+        {
+            // If no solution exists, manual move queue
+            if (_solution.Count == 0)
+            {
+                return _moveQueue[--_currentIndex];
+            }
+
+            // If at the start of the current sequence
+            if (_currentIndex == 0 && Manager.Instance.useStages)
+            {
+                // If this is the first sequence, nothing to go back to
+                if (_currentSequenceIndex == 0)
+                    return "";
+
+                // To the previous sequence
+                _currentSequence = _solution[--_currentSequenceIndex];
+                _moveQueue = _currentSequence.Moves;
+                _currentIndex = _moveQueue.Count;
+                SetHighlightedPiece();
+
+                // Update move list
+                Manager.Instance.UpdateMoveList();
+            }
+            else
+            {
+                TryHighlightPiece();
+                // Update move highlight
+                Manager.Instance.SwitchMoveText(false);
+            }
+
+            // Return the previous move in the current move queue
+            return _moveQueue[--_currentIndex];
+        }
+
 
         private void BeginMove(string move)
         {
@@ -486,7 +585,7 @@ namespace UI
             _rotationPlane.localRotation = Quaternion.RotateTowards(
                 _rotationPlane.localRotation,
                 _destinationOrientation,
-                animationSpeed * 100 * Time.deltaTime);
+                (_isScrambling ? 40f : animationSpeed) * 100 * Time.deltaTime);
 
             // Keep rotating until reached
             if (_rotationPlane.localRotation != _destinationOrientation) return;
@@ -500,10 +599,64 @@ namespace UI
             UpdateFacelet();
             SetColours(_facelet);
 
-            if (isProgressing)
-                Manager.Instance.SwitchMoveText(true);
+            // Exit if not progressing or not currently solving
+            if (!_isProgressing || !IsSolving())
+            {
+                if (!_isProgressing)
+                    TryHighlightPiece();
+                else
+                    _currentIndex++;
+                
+                _isAnimating = false;
 
+                // Stop scrambling if all moves are done
+                if (_isScrambling && _currentIndex == _moveQueue.Count)
+                    _isScrambling = false;
+
+                return;
+            }
+
+
+            PostAnimUpdate();
+
+            // End of animation step
             _isAnimating = false;
+            return;
+
+            void PostAnimUpdate()
+            {
+                // Check if reached the end of current move sequence
+                if (_currentIndex == _moveQueue.Count - 1 && Manager.Instance.useStages)
+                {
+                    if (_isScrambling)
+                        _isScrambling = false;
+
+                    // If last sequence, stop automation
+                    if ((Manager.Instance.useStages && _currentSequenceIndex == _solution.Count - 1)
+                        || (!Manager.Instance.useStages && _currentIndex == _moveQueue.Count - 1))
+                    {
+                        _isAutomating = false;
+                        _isAnimating = false;
+                        _currentIndex++;
+                        Manager.Instance.SwitchMoveText(); // Show final move as complete
+                        return;
+                    }
+
+                    // Move to the next sequence
+                    _currentSequence = _solution[++_currentSequenceIndex];
+                    _moveQueue = _currentSequence.Moves;
+                    _currentIndex = 0;
+                    SetHighlightedPiece();
+                    Manager.Instance.UpdateMoveList(); // Refresh move list
+                }
+                else
+                {
+                    TryHighlightPiece();
+                    _currentIndex++;
+                    // Continue within the current move queue
+                    Manager.Instance.SwitchMoveText();
+                }
+            }
         }
 
         private void GroupPieces(int face)
@@ -530,7 +683,12 @@ namespace UI
 
         public void UpdateAnimationSpeed(Slider slider)
         {
-            animationSpeed = slider.value == 6f ? 30f : slider.value;
+            animationSpeed = Mathf.Approximately(slider.value, 6f) ? 30f : slider.value;
+        }
+
+        public Stage GetCurrentStage()
+        {
+            return Stage.Stages[_solution[_currentSequenceIndex].StageIndex];
         }
 
         #endregion
@@ -548,19 +706,15 @@ namespace UI
             if (_isAnimating && !isOrientating)
                 AnimateMove();
 
-            // Only auto move if automating or in the editor for shuffling
-            // Or only if the previous animation has finished
+            // Only move if automating or in the editor for shuffling
+            // and only if the previous animation has finished
             if ((!_isAutomating && _isSolving) || _isAnimating)
                 return;
 
-            // Reset
-            if (_isReset)
-                HandleResetColours();
-            // Auto move if more moves left
-            else if (_currentIndex < _moveQueue.Count)
+            if (_currentIndex < _moveQueue.Count || IsSolving())
                 Move();
             // Automation finished all the moves
-            else
+            else if (_currentIndex == _moveQueue.Count && _currentSequenceIndex == _solution.Count - 1)
                 _isAutomating = false;
         }
 
@@ -573,7 +727,7 @@ namespace UI
             ToggleAuto = 4
         }
 
-        private static readonly Dictionary<KeyCode, MoveCommand> _keyMapping = new()
+        private static readonly Dictionary<KeyCode, MoveCommand> KeyMapping = new()
         {
             { KeyCode.RightArrow, MoveCommand.Forward },
             { KeyCode.LeftArrow, MoveCommand.Backward },
@@ -589,13 +743,13 @@ namespace UI
             switch ((MoveCommand)command)
             {
                 case MoveCommand.Forward:
-                    if (isBusy || !CanMoveForward()) return;
+                    if (isBusy) return;
                     
                     Move();
                     break;
 
                 case MoveCommand.Backward:
-                    if (isBusy || !CanMoveBackward()) return;
+                    if (isBusy) return;
                     
                     Unmove();
                     break;
@@ -622,35 +776,34 @@ namespace UI
 
         private void HandleKeyboardShortcuts()
         {
-            foreach (var shortcut in _keyMapping)
+            foreach (var shortcut in KeyMapping)
                 if (Input.GetKeyDown(shortcut.Key))
                 {
-                    HandleMoveControls((int)shortcut.Value);
+                    // HandleMoveControls((int)shortcut.Value);
+                    
+                    print(Instance.GetCurrentStage().ToString());
                     return;
                 }
         }
 
-        /// <summary>
-        /// Check if all the moves are done.
-        /// </summary>
-        /// <returns></returns>
-        private bool CanMoveForward() => _currentIndex < _moveQueue.Count;
-
-        /// <summary>
-        /// Check if currently on the first move.
-        /// </summary>
-        /// <returns></returns>
-        private bool CanMoveBackward() => _currentIndex > 0;
-
         private void SetToEnd()
         {
-            SetCubie(Cubie.Identity);
+            SetCubie(Identity);
             UpdateFacelet();
             SetColours(_facelet);
 
+            if (Manager.Instance.useStages)
+            {
+                print("Setting to end");
+                _currentSequence = _solution[^1];
+                _moveQueue = _currentSequence.Moves;
+                _currentSequenceIndex = _solution.Count - 1;
+            }
+
             _currentIndex = _moveQueue.Count;
 
-            Manager.Instance.ListToEnd();
+            Manager.Instance.UpdateMoveList();
+            SetHighlightedPiece();
         }
 
         private void SetToStart()
@@ -659,9 +812,17 @@ namespace UI
             UpdateCubie();
             SetColours(_facelet);
 
+            if (Manager.Instance.useStages)
+            {
+                _currentSequence = _solution[0];
+                _moveQueue = _currentSequence.Moves;
+                _currentSequenceIndex = 0;
+            }
+
             _currentIndex = 0;
 
-            Manager.Instance.ListToStart();
+            Manager.Instance.UpdateMoveList();
+            SetHighlightedPiece();
         }
 
         private void ToggleAutomation() => _isAutomating = !_isAutomating;
@@ -676,9 +837,62 @@ namespace UI
             // Prevent setting move list for shuffles or when editing
             if (_newSolution)
             {
+                _currentSequence = _solution[0];
+                _moveQueue = _currentSequence.Moves;
+                _currentIndex = 0;
+                _currentSequenceIndex = 0;
                 Manager.Instance.UpdateMoveList();
+                SetHighlightedPiece();
+                CreateWholeSequence();
+
+                if (!Manager.Instance.useStages)
+                    SetIndexFromSequence();
+
                 _newSolution = false;
             }
+        }
+
+        private void CreateWholeSequence()
+        {
+            var moves = _solution.SelectMany(s => s.Moves).ToList();
+
+            _wholeSequence = new Sequence(-1, moves, new() { });
+        }
+
+        public void SetSequenceFromIndex()
+        {
+            int cumulativeIndex = 0;
+
+            foreach (var sequence in _solution)
+            {
+                cumulativeIndex += sequence.Moves.Count;
+                
+                if (cumulativeIndex <= _currentIndex && cumulativeIndex != _wholeSequence.Moves.Count) 
+                    continue;
+
+                _currentSequence = sequence;
+                _currentSequenceIndex = _solution.IndexOf(sequence);
+                _moveQueue = sequence.Moves;
+                _currentIndex -= (cumulativeIndex - sequence.Moves.Count);
+                Manager.Instance.SetTutorialButtonActive(true);
+                Manager.Instance.UpdateMoveList();
+                SetHighlightedPiece();
+                return;
+            }
+        }
+
+        public bool LastSequence => _currentSequenceIndex == _solution.Count - 1;
+
+        public void SetIndexFromSequence()
+        {
+            _currentIndex += _solution.Take(_currentSequenceIndex).Sum(s => s.Moves.Count);
+
+            _currentSequence = _wholeSequence;
+            _currentSequenceIndex = -1;
+            _moveQueue = _currentSequence.Moves;
+            Manager.Instance.SetTutorialButtonActive(false);
+            Manager.Instance.UpdateMoveList();
+            SetHighlightedPiece();
         }
 
         public void SetIsSolving(bool b) => _isSolving = b;

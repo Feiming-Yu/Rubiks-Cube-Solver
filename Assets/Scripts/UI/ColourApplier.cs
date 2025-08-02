@@ -1,4 +1,3 @@
-using Model;
 using UnityEngine;
 using static Manager;
 
@@ -25,7 +24,7 @@ namespace UI
 
         private void OnMouseEnter()
         {
-            if (Instance.isWindowOpen || Cube.Instance.IsSolving()) return;
+            if (Instance.isWindowOpen || Cube.Instance.IsCubeBusy) return;
 
             // Prevent modifying center squares
             if (_isCentre) return;
@@ -33,10 +32,10 @@ namespace UI
             if (Input.GetMouseButton(0))
                 ApplyColour();
         }
+
         private void OnMouseDown()
         {
-
-            if (Instance.isWindowOpen || Cube.Instance.IsSolving()) return;
+            if (Instance.isWindowOpen || Cube.Instance.IsCubeBusy) return;
 
             // Prevent modifying center squares
             if (_isCentre) return;

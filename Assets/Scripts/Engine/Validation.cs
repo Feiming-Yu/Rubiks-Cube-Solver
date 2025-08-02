@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Model;
+using Tutorial;
 using static Model.Converter;
 using static UI.Square.Colour;
 using static Model.Cubie;
@@ -13,15 +14,24 @@ namespace Engine
     // and allows ease of following the step-by-step process to check validation.
     public static class Validation
     {
-
         public static InvalidCubeException InvalidCubeException { get; private set; }
 
         // Entry point: validate a cube represented as Facelets
         public static bool Validate(Facelet cube)
         {
             if (!CheckLegal(cube)) return false;
-            if (!CheckSolvable(Converter.FaceletToCubie(cube), cube)) return false;
+            if (!CheckSolvable(FaceletToCubie(cube), cube)) return false;
+            if (CheckAlreadySolved(cube)) return false;
 
+            return true;
+        }
+
+        private static bool CheckAlreadySolved(Facelet cube)
+        {
+            var solvedCubeSquares = CubieToFacelet(Cubie.Identity).Concat();
+            if (!cube.Concat().SequenceEqual(solvedCubeSquares)) return false;
+
+            InvalidCubeException = new CubeAlreadySolvedException();
             return true;
         }
 
@@ -32,7 +42,7 @@ namespace Engine
             if (!ColourFrequencyCheck(cube))
                 return false;
 
-            if (!AdjacentSquareCheck(Converter.FaceletToCubie(cube, false)))
+            if (!CheckIllegalPieces(FaceletToCubie(cube, false)))
                 return false;
 
             return true;
@@ -60,21 +70,6 @@ namespace Engine
                 return true;
 
             InvalidCubeException = new ColorFrequencyException(frequencies.IndexOf(frequencies.Max()));
-            return false;
-        }
-
-        private static bool AdjacentSquareCheck(Cubie cube)
-        {
-            return CheckRepeatedSquares(cube) && CheckIllegalPieces(cube);
-        }
-
-        private static bool CheckRepeatedSquares(Cubie cube)
-        {
-            if (cube.Corners.All(corner => corner.Value.colours.ToHashSet().Count == 3) &&
-                cube.Edges.All(edge => edge.Value.colours.ToHashSet().Count == 2))
-                return true;
-
-            InvalidCubeException = new InvalidCubeException();
             return false;
         }
 

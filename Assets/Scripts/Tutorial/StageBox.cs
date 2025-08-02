@@ -1,42 +1,71 @@
-using System;
 using System.Collections;
+using UI;
 using UnityEngine;
 
-public class StageBox : MonoBehaviour
+namespace Tutorial
 {
-    [SerializeField] TMPro.TextMeshProUGUI stage, heading, subHeading, body;
-
-    [SerializeField] GameObject showButton;
-
-    private readonly Vector3 hiddenPos = new(-160f, 8f, 0f);
-    private readonly Vector3 visiblePos = new(-62.5f, 8f, 0f);
-
-    public void Show()
+    public class StageBox : MonoBehaviour
     {
-        showButton.SetActive(false);
+        // singleton instance
+        public static StageBox Instance;
 
-        StartCoroutine(Animate(transform.localPosition, visiblePos, 0.1f));
-    }
-
-    public void Hide()
-    {
-        StartCoroutine(Animate(transform.localPosition, hiddenPos, 0.1f, true));
-    }
-
-    private IEnumerator Animate(Vector3 from, Vector3 to, float time, bool hide = false)
-    {
-        float elapsed = 0f;
-
-        while (elapsed < time)
+        private void Awake()
         {
-            transform.localPosition = Vector3.Lerp(from, to, elapsed / time);
-            elapsed += Time.deltaTime;
-            yield return null;
+            if (Instance == null)
+                Instance = this;
+            else
+                Destroy(Instance);
+        }
+        
+        [SerializeField] private TMPro.TextMeshProUGUI stage, heading, subHeading, body;
+
+        [SerializeField] private GameObject showButton;
+
+        private readonly Vector3 _hiddenPos = new(-160f, 8f, 0f);
+        private readonly Vector3 _visiblePos = new(-62.5f, 8f, 0f);
+
+        public void Show()
+        {
+            showButton.SetActive(false);
+            UpdateInformation();
+            StartCoroutine(Animate(transform.localPosition, _visiblePos, 0.1f));
         }
 
-        transform.localPosition = to;
+        public void Hide(bool useTutorials = true)
+        {
+            StartCoroutine(Animate(transform.localPosition, _hiddenPos, 0.1f, true, useTutorials));
+        }
 
-        if (hide)
-            showButton.SetActive(true);
+        public void UpdateInformation()
+        {
+            if (!Manager.Instance.useTutorials)
+                return;
+
+            Stage currentStage = Cube.Instance.GetCurrentStage();
+
+            stage.text = $"Stage {currentStage.Index + 1}";
+            heading.text = currentStage.Name;
+            subHeading.text = currentStage.FriendlyName;
+            body.text = currentStage.Description;
+        }
+
+        private IEnumerator Animate(Vector3 from, Vector3 to, float time, bool hide = false, bool useTutorials = true)
+        {
+            float elapsed = 0f;
+
+            while (elapsed < time)
+            {
+                transform.localPosition = Vector3.Lerp(from, to, elapsed / time);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            transform.localPosition = to;
+
+            if (hide && useTutorials)
+                showButton.SetActive(true);
+            else
+                showButton.SetActive(false);
+        }
     }
 }

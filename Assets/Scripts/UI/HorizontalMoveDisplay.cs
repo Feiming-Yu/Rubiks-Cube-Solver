@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
+using Tutorial;
 using UnityEngine;
 
 namespace UI
@@ -11,7 +12,7 @@ namespace UI
 
         private int _currentIndex;
         private int _moveCount;
-        private List<string> _moveList;
+        private List<string> _moves;
 
         /// <summary>
         /// Displays a list of cube moves on the screen by instantiating and styling text objects.
@@ -22,7 +23,16 @@ namespace UI
             // Clear any previously displayed move texts from the ui
             ClearDisplay();
 
+            _moves = new List<string>(moves);
             _moveCount = moves.Count;
+            _currentIndex = Cube.Instance.GetCurrentIndex();
+
+            if (_currentIndex == _moveCount
+                && Manager.Instance.useStages 
+                && !Cube.Instance.LastSequence)
+            {
+                _currentIndex--;
+            }
 
             for (int i = 0; i < moves.Count; i++)
             {
@@ -35,6 +45,11 @@ namespace UI
                 // Apply visual style, highlighting the current move if applicable
                 SetTextStyle(moveText, i == _currentIndex, i, true);
             }
+
+            SetPosition(_currentIndex);
+
+            StageBox.Instance.UpdateInformation();
+            SequenceBox.Instance.UpdateInformation();
         }
 
         /// <summary>
@@ -46,11 +61,17 @@ namespace UI
                 Destroy(transform.GetChild(i).gameObject);
 
             // Reset counters
-            _moveCount = _currentIndex = 0;
+            _moveCount = 0;
+            _currentIndex = 0;
 
             // Reset horizontal position
             var pos = transform.localPosition;
             transform.localPosition = new Vector3(41, pos.y, pos.z);
+        } 
+
+        public string GetCurrentDisplayedMove()
+        {
+            return _currentIndex == _moveCount ? "" : _moves[_currentIndex];
         }
         
         private void SetTextStyle(TMP_Text text, bool isCurrentMove, int index, bool postAnimation, bool isProgress = true)
@@ -102,7 +123,7 @@ namespace UI
             SetFocusedStyle(text);
         }
 
-        private void SetFocusedStyle(TMP_Text text)
+        private static void SetFocusedStyle(TMP_Text text)
         {
             text.fontSize = 12;
             text.fontStyle = FontStyles.Bold;
@@ -123,7 +144,6 @@ namespace UI
         {
             if (_moveCount == 0) return;
 
-            
             int direction = progress ? 1 : -1;
             _currentIndex += direction;
 
@@ -132,6 +152,7 @@ namespace UI
             StyleFocusedText();
             
             var pos = transform.localPosition;
+
             float duration = 0.15f / Cube.Instance.animationSpeed;
             StartCoroutine(ShiftListTransform(new Vector3(pos.x + (direction * -18), pos.y, pos.z), duration, progress));
         }
@@ -172,8 +193,12 @@ namespace UI
             StyleFocusedText();
             StyleSideText(true);
 
+            SetPosition(index);
+        }
+
+        private void SetPosition(int index)
+        {
             var pos = transform.localPosition;
-            
             // 41 is initial x-coordinate
             float x = 41f + (index * -18);
             transform.localPosition = new Vector3(x, pos.y, pos.z);

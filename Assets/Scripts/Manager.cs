@@ -6,8 +6,11 @@ using Model;
 using System;
 using static Model.Facelet;
 using System.Collections.Concurrent;
+using System.Linq;
 using Testing;
+using Tutorial;
 using UI;
+using UnityEngine.Serialization;
 using static Engine.Solver;
 using UnityEngine.UI;
 
@@ -21,17 +24,18 @@ public class Manager : MonoBehaviour
         public int testNumber;
         public ExitCode exitCode;
 
-        public CubeFile(Facelet startState, List<string> moves, int testNumber, ExitCode exitCode)
+        public CubeFile(Facelet startState, List<Sequence> solution, int testNumber, ExitCode exitCode)
         {
             this.startState = startState.ToNestedList();
-            this.moves = moves;
             this.testNumber = testNumber;
             this.exitCode = exitCode;
+            
+            moves = solution.SelectMany(s => s.Moves).ToList();
         }
 
         public override string ToString()
         {
-            return "Test Number: " + testNumber.ToString() + $"  [{DateTime.Now}]" + "\n\n" +
+            return "Test Number: " + testNumber + $"  [{DateTime.Now}]" + "\n\n" +
                    startState + "\n" +
                    string.Join(" ", moves) + "\n\n"
                    + "Exit Code: " + exitCode + "\n"
@@ -60,6 +64,10 @@ public class Manager : MonoBehaviour
 
     [SerializeField] private Transform importButton;
 
+    [SerializeField] private TMPro.TextMeshProUGUI moveDescription;
+    [SerializeField] private GameObject showSequenceButton, showStageButton;
+    [SerializeField] private Toggle tutorialsToggle;
+
     [Header("Interfaces")] 
     [SerializeField] private Transform settingsWindow;
     [SerializeField] private Transform cubeCanvas;
@@ -68,18 +76,24 @@ public class Manager : MonoBehaviour
     [SerializeField] private Transform fileWindow;
 
     [Header("Theme")]
-    public Theme[] themes;
-    public Button[] mainButtons, windowButtons, closeButtons;
-    public Camera mainCamera;
-    public Image[] windowBackgrounds;
-    public TMPro.TextMeshProUGUI[] texts;
-    public Slider[] sliders;
-    public PaletteButton[] paletteButtons;
+    [SerializeField] private Theme[] themes;
+    [SerializeField] private Button[] mainButtons, windowButtons, closeButtons;
+    [SerializeField] private Camera mainCamera;
+    [SerializeField] private Image[] windowBackgrounds;
+    [SerializeField] private TMPro.TextMeshProUGUI[] texts;
+    [SerializeField] private TMPro.TextMeshProUGUI[] titles;
+    [SerializeField] private Slider[] sliders;
+    [SerializeField] private PaletteButton[] paletteButtons;
+    [SerializeField] private SpriteRenderer[] popUpBoxes;
+    [SerializeField] private SpriteRenderer warningIcon;
 
     private const string LOG_DIRECTORY = @"D:\Projects\Rubik's Cube Solver\Saves\";
     private const string LOG_FILE_PATH = @"D:\Projects\Rubik's Cube Solver\Log\Log.txt";
-    
+
     [HideInInspector] public bool isWindowOpen;
+    [HideInInspector] public bool highlightPiece = true;
+    [HideInInspector] public bool useTutorials = true;
+    [HideInInspector] public bool useStages = true;
     [HideInInspector] public int currentThemeIndex;
     [HideInInspector] public int currentColourInput = Square.Colour.WHITE;
 
@@ -154,13 +168,13 @@ public class Manager : MonoBehaviour
             Cube.Instance.GetSolution(), 
             -1, 
             (ExitCode)(-1));
-
-
+        
+        
         var path = StandaloneFileBrowser.SaveFilePanel("Save Cube", "", "", "cube");
-
+        
         if (path.Length == 0)
             return;
-
+        
         File.WriteAllText(path, JsonUtility.ToJson(cubeFile));
     }
     
@@ -225,18 +239,31 @@ public class Manager : MonoBehaviour
         ClearMoveListChildren();
 
         Cube.Instance.TurnOffAutomation();
+        Cube.Instance.RemoveHighlightedPiece();
     }
-    
+
     #endregion
-    
+
     #region Move List
-    
-    public void UpdateMoveList() => moveList.DisplayMoves(Cube.Instance.GetSolution());
+
+    public void UpdateMoveList()
+    {
+        moveList.DisplayMoves(Cube.Instance.GetCurrentMoveQueue());
+        UpdateMoveDescription();
+    }
 
     public void SwitchMoveText(bool isProgress = true)
     {
-        if (isProgress) moveList.Progress();
-        else moveList.Regress();
+        if (isProgress) 
+            moveList.Progress();
+        else 
+            moveList.Regress();
+        UpdateMoveDescription();
+    }
+
+    private void UpdateMoveDescription()
+    { 
+        moveDescription.text = MoveNotation.ConvertToMoveDescription(moveList.GetCurrentDisplayedMove());
     }
 
     public void ListToStart() => moveList.ToStart();
@@ -294,6 +321,11 @@ public class Manager : MonoBehaviour
             text.color = theme.opposite;
         }
 
+        foreach (var title in titles)
+        {
+            title.color = theme.oppositeSecondary;
+        }
+
         foreach (var slider in sliders)
         {
             slider.transform.GetChild(1).GetComponent<Image>().color = theme.tertiary;
@@ -309,6 +341,60 @@ public class Manager : MonoBehaviour
             slider.transform.GetChild(0).GetComponent<TMPro.TextMeshProUGUI>().color = theme.opposite;
         }
 
+        foreach (var box in popUpBoxes)
+        {
+            box.color = theme.secondary;
+        }
+
+        warningIcon.color = theme.oppositeSecondary;
+
         moveList.UpdateColours();
+    }
+
+    public void TogglePieceHighlighter(Toggle toggle)
+    {
+        highlightPiece = toggle.isOn;
+
+        if (highlightPiece)
+            Cube.Instance.SetHighlightedPiece();
+        else
+            Cube.Instance.RemoveHighlightedPiece();
+    }
+
+    public void ToggleSolvingStages(Toggle toggle)
+    {
+        useStages = toggle.isOn;
+        if (toggle.isOn)
+            Cube.Instance.SetSequenceFromIndex();
+        else
+            Cube.Instance.SetIndexFromSequence();
+    }
+
+    public void ToggleDefinitions(Toggle toggle)
+    {
+        moveDescription.gameObject.SetActive(toggle.isOn);
+    }
+
+    public void ToggleTutorials(Toggle toggle)
+    {
+        SetTutorialButtonActive(tutorialsToggle.isOn);
+    }
+
+    public void SetTutorialButtonActive(bool isActive)
+    {
+        if (isActive && tutorialsToggle.isOn)
+        {
+            showSequenceButton.SetActive(true);
+            showStageButton.SetActive(true);
+            useTutorials = true;
+        }
+        else if (!isActive && Cube.Instance.IsSolving())
+        {
+            showSequenceButton.SetActive(false);
+            showStageButton.SetActive(false);
+            StageBox.Instance.Hide(false);
+            SequenceBox.Instance.Hide(false);
+            useTutorials = false;
+        }
     }
 }

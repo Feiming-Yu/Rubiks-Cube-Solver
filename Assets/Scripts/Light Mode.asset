@@ -18,5 +18,5 @@ MonoBehaviour:
   highlightPrimary: {r: 0.74509805, g: 0.74509805, b: 0.74509805, a: 1}
   highlightSecondary: {r: 0.6603774, g: 0.6603774, b: 0.6603774, a: 1}
   selected: {r: 0.7169812, g: 0.38216448, b: 0.38216448, a: 1}
-  opposite: {r: 0.3504806, g: 0.37740296, b: 0.41509432, a: 1}
-  oppositeSecondary: {r: 0.5159309, g: 0.5402749, b: 0.5849056, a: 1}
+  opposite: {r: 0.46858314, g: 0.4830011, b: 0.509434, a: 1}
+  oppositeSecondary: {r: 0.34901962, g: 0.3764706, b: 0.41568628, a: 1}

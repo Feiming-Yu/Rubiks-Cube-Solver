@@ -69,6 +69,11 @@ namespace UI
             };
         }
 
+        public static int FaceToIndex(char face)
+        {
+            return FaceToIndex(face.ToString());
+        }
+
         public void UpdateGraphics()
         {
             MeshRenderer meshRenderer = GetComponent<MeshRenderer>();

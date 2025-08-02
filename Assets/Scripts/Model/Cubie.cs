@@ -288,7 +288,7 @@ namespace Model
                 // shift pieces to the left and adjust orientation
                 pieces[moveInfo.indexes[i]] = Reorientate(pieces[moveInfo.indexes[i + 1]], moveInfo.orientationDelta[i]);
 
-            // move first piece to the end
+            // move first piece to the end 
             pieces[moveInfo.indexes[^1]] = Reorientate(firstPiece, moveInfo.orientationDelta[^1]);
         }
 
@@ -298,6 +298,7 @@ namespace Model
         }
 
         #endregion
+
 
         public void Shuffle()
         {
@@ -323,5 +324,21 @@ namespace Model
                 Move(move);
             }
         }
+
+        public static List<List<int>> CubieIndexToGraphicIndex = new()
+        {
+            new() { 15, 6  },
+            new() { 7 , 8  },
+            new() { 17, 26 },
+            new() { 25, 24 },
+            new() { 9 , 0  },
+            new() { 1 , 2  },
+            new() { 11, 20 },
+            new() { 19, 18 },
+            new() { 3 , -1 },
+            new() { 5 , -1 },
+            new() { 23, -1 },
+            new() { 21, -1 },
+        };
     }
 }
