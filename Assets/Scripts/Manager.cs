@@ -1,18 +1,22 @@
-using UnityEngine;
+using Model;
+using SimpleFileBrowser;
+using System;
+using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using SFB;
-using Model;
-using System;
-using static Model.Facelet;
-using System.Collections.Concurrent;
 using System.Linq;
 using Testing;
 using Tutorial;
 using UI;
-using UnityEngine.Serialization;
-using static Engine.Solver;
+using UnityEngine;
 using UnityEngine.UI;
+using static Engine.Solver;
+using static Model.Facelet;
+
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+using SFB; // For StandaloneFileBrowser
+#endif
 
 public class Manager : MonoBehaviour
 {
@@ -64,7 +68,7 @@ public class Manager : MonoBehaviour
 
     [SerializeField] private Transform importButton;
 
-    [SerializeField] private TMPro.TextMeshProUGUI moveDescription;
+    [SerializeField] private TMPro.TextMeshProUGUI moveDescription, invalidNotification;
     [SerializeField] private GameObject showSequenceButton, showStageButton;
     [SerializeField] private Toggle tutorialsToggle;
 
@@ -146,40 +150,117 @@ public class Manager : MonoBehaviour
 
     public void Import()
     {
-        var path = StandaloneFileBrowser.OpenFilePanel("Open Cube", "", "cube", false);
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+        var path = StandaloneFileBrowser.OpenFilePanel("Load Cube", "", "cube", false);
+        if (path.Length == 0) return;
 
-        if (path.Length == 0)
-            return;
-
-        CubeFile cubeFile = JsonUtility.FromJson<CubeFile>(File.ReadAllText(path[0]));
-        Facelet cube = cubeFile.ToFacelet();
-
-        Cube.Instance.TrackCube();
-        Cube.Instance.ClearQueue();
-        Cube.Instance.SetFacelet(cube);
-        Cube.Instance.UpdateCubie();
-        Cube.Instance.SetColours(cube);
+        LoadCubeFromFile(path[0]);
+#elif UNITY_ANDROID
+        StartCoroutine(ImportAndroid());
+#else
+        Debug.LogWarning("Import not supported on this platform.");
+#endif
     }
-    
+
     public void Export()
     {
-        var cubeFile = new CubeFile(
-            Cube.Instance.GetFacelet(), 
-            Cube.Instance.GetSolution(), 
-            -1, 
-            (ExitCode)(-1));
-        
-        
-        var path = StandaloneFileBrowser.SaveFilePanel("Save Cube", "", "", "cube");
-        
-        if (path.Length == 0)
-            return;
-        
+#if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
+        var cubeFile = CreateCubeFile();
+
+        var path = StandaloneFileBrowser.SaveFilePanel("Save Cube", "", "exported_cube", "cube");
+        if (string.IsNullOrEmpty(path)) return;
+
         File.WriteAllText(path, JsonUtility.ToJson(cubeFile));
+#elif UNITY_ANDROID
+        StartCoroutine(ExportAndroid());
+#else
+        Debug.LogWarning("Export not supported on this platform.");
+#endif
     }
-    
+
+    private void LoadCubeFromFile(string path)
+    {
+        try
+        {
+            string json = File.ReadAllText(path);
+            CubeFile cubeFile = JsonUtility.FromJson<CubeFile>(json);
+            Facelet cube = cubeFile.ToFacelet();
+
+            Cube.Instance.TrackCube();
+            Cube.Instance.ClearQueue();
+            Cube.Instance.SetFacelet(cube);
+            Cube.Instance.UpdateCubie();
+            Cube.Instance.SetColours(cube);
+
+            Debug.Log("Cube imported successfully.");
+        }
+        catch (Exception e)
+        {
+            Debug.LogError("Error loading cube file: " + e.Message);
+        }
+    }
+
+    private CubeFile CreateCubeFile()
+    {
+        return new CubeFile(
+            Cube.Instance.GetFacelet(),
+            Cube.Instance.GetSolution(),
+            -1,
+            (ExitCode)(-1));
+    }
+
+    private IEnumerator ImportAndroid()
+    {
+#if UNITY_ANDROID
+        if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.ExternalStorageRead))
+        {
+            UnityEngine.Android.Permission.RequestUserPermission(UnityEngine.Android.Permission.ExternalStorageRead);
+            yield return new WaitForSeconds(1f);
+        }
+
+        FileBrowser.SetFilters(true, new[] { ".cube" });
+        FileBrowser.SetDefaultFilter(".cube");
+
+        yield return FileBrowser.WaitForLoadDialog(FileBrowser.PickMode.Files, false, null, "", "Load Cube");
+
+        if (FileBrowser.Success)
+        {
+            LoadCubeFromFile(FileBrowser.Result[0]);
+        }
+        else
+        {
+            Debug.Log("File picking cancelled.");
+        }
+#endif
+    }
+
+    private IEnumerator ExportAndroid()
+    {
+#if UNITY_ANDROID
+        if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.ExternalStorageWrite))
+        {
+            UnityEngine.Android.Permission.RequestUserPermission(UnityEngine.Android.Permission.ExternalStorageWrite);
+            yield return new WaitForSeconds(1f);
+        }
+        var cubeFile = CreateCubeFile();
+
+        yield return FileBrowser.WaitForSaveDialog(FileBrowser.PickMode.Files, false, null, "", "Save Cube");
+
+        if (FileBrowser.Success)
+        {
+            File.WriteAllText(FileBrowser.Result[0], JsonUtility.ToJson(cubeFile));
+            Debug.Log("Cube saved successfully.");
+        }
+        else
+        {
+            Debug.Log("Save cancelled.");
+        }
+#endif
+    }
+
+
     #endregion
-    
+
     public void SwitchInputColour(int colour)
     {
         Instance.currentColourInput = colour;
@@ -262,7 +343,7 @@ public class Manager : MonoBehaviour
     }
 
     private void UpdateMoveDescription()
-    { 
+    {
         moveDescription.text = MoveNotation.ConvertToMoveDescription(moveList.GetCurrentDisplayedMove());
     }
 
@@ -396,5 +477,10 @@ public class Manager : MonoBehaviour
             SequenceBox.Instance.Hide(false);
             useTutorials = false;
         }
+    }
+
+    public void SetInvalidNotificationActive(bool isActive)
+    {
+        invalidNotification.gameObject.SetActive(isActive);
     }
 }

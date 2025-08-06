@@ -343,7 +343,9 @@ namespace UI
                 CubeErrorBox.Instance.Hide();
             }
             else
+            {
                 CubeErrorBox.Instance.Show();
+            }
         }
 
         private void HandleZoom()
@@ -491,8 +493,9 @@ namespace UI
 
         private string GetPreviousMove()
         {
+            if (_currentIndex == 0) return "";
             // If no solution exists, manual move queue
-            if (_solution.Count == 0)
+            if (_solution.Count == 0 && _moveQueue.Count > 0)
             {
                 return _moveQueue[--_currentIndex];
             }
@@ -738,7 +741,7 @@ namespace UI
         
         public void HandleMoveControls(int command)
         {
-            bool isBusy = _isAnimating || _isAutomating;
+            bool isBusy = _isAnimating || _isAutomating || !IsSolving();
 
             switch ((MoveCommand)command)
             {
@@ -779,20 +782,20 @@ namespace UI
             foreach (var shortcut in KeyMapping)
                 if (Input.GetKeyDown(shortcut.Key))
                 {
-                    // HandleMoveControls((int)shortcut.Value);
-                    
-                    print(Instance.GetCurrentStage().ToString());
+                    HandleMoveControls((int)shortcut.Value);
                     return;
                 }
         }
 
         private void SetToEnd()
         {
+            if (_solution.Count == 0) return;
+
             SetCubie(Identity);
             UpdateFacelet();
             SetColours(_facelet);
 
-            if (Manager.Instance.useStages)
+            if (Manager.Instance.useStages && false)
             {
                 print("Setting to end");
                 _currentSequence = _solution[^1];
@@ -808,11 +811,13 @@ namespace UI
 
         private void SetToStart()
         {
+            if (_solution.Count == 0) return;
+
             SetFacelet(_startingFacelet);
             UpdateCubie();
             SetColours(_facelet);
 
-            if (Manager.Instance.useStages)
+            if (Manager.Instance.useStages && false)
             {
                 _currentSequence = _solution[0];
                 _moveQueue = _currentSequence.Moves;
@@ -835,7 +840,7 @@ namespace UI
         private void HandleNewMoveList()
         {
             // Prevent setting move list for shuffles or when editing
-            if (_newSolution)
+            if (_newSolution && _solution.Count > 0)
             {
                 _currentSequence = _solution[0];
                 _moveQueue = _currentSequence.Moves;

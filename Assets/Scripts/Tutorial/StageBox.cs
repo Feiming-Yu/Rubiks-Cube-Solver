@@ -26,7 +26,6 @@ namespace Tutorial
 
         public void Show()
         {
-            showButton.SetActive(false);
             UpdateInformation();
             StartCoroutine(Animate(transform.localPosition, _visiblePos, 0.1f));
         }

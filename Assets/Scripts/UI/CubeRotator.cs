@@ -4,7 +4,7 @@ using static System.MathF;
 
 namespace UI
 {
-    public class Orientator : MonoBehaviour
+    public class CubeRotator : MonoBehaviour
     {
         [SerializeField] private Transform cube;
         [SerializeField] private Camera cam;
