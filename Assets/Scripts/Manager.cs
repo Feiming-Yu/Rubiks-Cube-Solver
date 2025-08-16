@@ -1,5 +1,4 @@
 using Model;
-using SimpleFileBrowser;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -71,6 +70,7 @@ public class Manager : MonoBehaviour
     [SerializeField] private TMPro.TextMeshProUGUI moveDescription, invalidNotification;
     [SerializeField] private GameObject showSequenceButton, showStageButton;
     [SerializeField] private Toggle tutorialsToggle;
+    [SerializeField] private Toggle highlightToggle;
 
     [Header("Interfaces")] 
     [SerializeField] private Transform settingsWindow;
@@ -98,8 +98,11 @@ public class Manager : MonoBehaviour
     [HideInInspector] public bool highlightPiece = true;
     [HideInInspector] public bool useTutorials = true;
     [HideInInspector] public bool useStages = true;
+    [HideInInspector] public bool isOnCube = false;
     [HideInInspector] public int currentThemeIndex;
     [HideInInspector] public int currentColourInput = Square.Colour.WHITE;
+
+    public static bool IsAnimatingInputs => CubeRotator.IsBusy || LayerRotator.IsBusy || Cube.Instance.IsBusy;
 
     public async void RunSuite(int frequency)
     {
@@ -231,6 +234,8 @@ public class Manager : MonoBehaviour
         {
             Debug.Log("File picking cancelled.");
         }
+#else
+        return null;
 #endif
     }
 
@@ -255,9 +260,10 @@ public class Manager : MonoBehaviour
         {
             Debug.Log("Save cancelled.");
         }
+#else
+        return null;
 #endif
     }
-
 
     #endregion
 
@@ -277,6 +283,8 @@ public class Manager : MonoBehaviour
     
     public void ShowSettings()
     {
+        if (IsAnimatingInputs) return;
+        
         settingsWindow.gameObject.SetActive(true);
 
         isWindowOpen = true;
@@ -291,6 +299,8 @@ public class Manager : MonoBehaviour
     
     public void ShowFile()
     {
+        if (IsAnimatingInputs) return;
+        
         fileWindow.gameObject.SetActive(true);
         importButton.gameObject.SetActive(!Cube.Instance.IsSolving());
 
@@ -444,7 +454,8 @@ public class Manager : MonoBehaviour
 
     public void ToggleSolvingStages(Toggle toggle)
     {
-        useStages = toggle.isOn;
+        useStages = tutorialsToggle.interactable = highlightToggle.interactable = toggle.isOn;
+        
         if (toggle.isOn)
             Cube.Instance.SetSequenceFromIndex();
         else

@@ -28,7 +28,7 @@ namespace Engine
 
         private static bool CheckAlreadySolved(Facelet cube)
         {
-            var solvedCubeSquares = CubieToFacelet(Cubie.Identity).Concat();
+            var solvedCubeSquares = CubieToFacelet(Identity).Concat();
             if (!cube.Concat().SequenceEqual(solvedCubeSquares)) return false;
 
             InvalidCubeException = new CubeAlreadySolvedException();
@@ -165,14 +165,14 @@ namespace Engine
         }
 
         // Indices of "key" squares used for edge parity check
-        private static readonly List<int> KeyIndexes = new() { 12, 11, 25, 27, 28, 30, 4, 3, 22, 20, 19, 17 };
+        private static readonly List<int> KEY_INDEXES = new() { 12, 11, 25, 27, 28, 30, 4, 3, 22, 20, 19, 17 };
 
         // Edge parity check using super key criteria on specific squares
         private static bool EdgeParityCheck(IReadOnlyList<int> squares)
         {
             int superKeysCount = 0;
 
-            foreach (int index in KeyIndexes)
+            foreach (int index in KEY_INDEXES)
             {
                 var square = squares[index];
                 var adjacentSquare = squares[GetOtherEdgeSquareIndex(index)];

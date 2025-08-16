@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Model;
@@ -14,6 +14,29 @@ namespace UI
 {
     public class Cube : MonoBehaviour
     {
+        #region Constants
+
+        private const float MIN_ZOOM_SCALE = 0.1f;
+        private const float MAX_ZOOM_SCALE = 1.3f;
+        private const float SCROLL_THRESHOLD = 0.01f;
+        private const float SCRAMBLE_ANIMATION_SPEED = 40f;
+        private const float SLIDER_MAX_SPEED = 30f;
+        private const float ROTATION_MULTIPLIER = 100f;
+
+        private const float QUARTER_TURN_ANGLE = 90f;
+
+        private const int MIN_SCRAMBLE_MOVES = 60;
+        private const int MAX_SCRAMBLE_MOVES = 80;
+
+        private const int NUM_FACES = 6;
+        private const int NUM_STICKERS_PER_FACE = 8;
+        private const int NUM_CORNER_STICKERS = 3;
+
+        private const int COUNTER_CLOCKWISE_CHANCE = 2; // 0,1,2 → 30%
+        private const int DOUBLE_TURN_CHANCE = 3;       // 3 → 10%
+
+        #endregion
+
         // singleton instance
         public static Cube Instance;
 
@@ -29,7 +52,6 @@ namespace UI
         [SerializeField] private Material normalBody, highlightedBody;
 
         public float animationSpeed = 10;
-        [HideInInspector] public bool isOrientating;
 
         // core components
         private Transform _rotationPlane;
@@ -58,6 +80,11 @@ namespace UI
         private Solver _solver;
 
         private readonly List<Facelet> _previousFacelets = new();
+
+        public bool IsBusy
+        {
+            get => _isAnimating;
+        }
 
         private void Start()
         {
@@ -112,7 +139,7 @@ namespace UI
         
         public void ResetColours()
         {
-            if (_currentIndex != _moveQueue.Count || _isAnimating || _isSolving)
+            if (_currentIndex != _moveQueue.Count || _isAnimating || _isSolving || Manager.IsAnimatingInputs)
                 return;
                 
             _moveQueue.Clear();
@@ -132,7 +159,7 @@ namespace UI
         public bool IsCubeBusy => _currentIndex != _moveQueue.Count || _isAnimating || _isSolving;
 
         // Maps face indices to the indexes of the pieces on that face
-        private static readonly int[][] ColourPieceMap =
+        private static readonly int[][] COLOUR_PIECE_MAP =
         {
             new[] { 18, 19, 20, 9 , 11, 0 , 1 , 2  }, // Down face
             new[] { 6 , 7 , 8 , 15, 17, 24, 25, 26 }, // Up face
@@ -143,7 +170,7 @@ namespace UI
         };
 
         // Maps face indices to the sticker indexes on each piece
-        private static readonly int[][] ColourSquareMap =
+        private static readonly int[][] COLOUR_SQUARE_MAP =
         {
             new[] { 1, 0, 1, 1, 1, 1, 0, 1 }, // Down face stickers
             new[] { 1, 0, 1, 1, 1, 1, 0, 1 }, // Up face stickers
@@ -164,17 +191,17 @@ namespace UI
             _facelet = new Facelet();
 
             // Iterate through all 6 faces of the cube
-            for (int faceIndex = 0; faceIndex < 6; faceIndex++)
+            for (int faceIndex = 0; faceIndex < NUM_FACES; faceIndex++)
             {
                 _facelet.Faces[faceIndex] = new List<int>();
 
                 // For each sticker/square on the face, add its color to the facelet
-                for (int squareIndex = 0; squareIndex < 8; squareIndex++)
+                for (int squareIndex = 0; squareIndex < NUM_STICKERS_PER_FACE; squareIndex++)
                     AddGraphicsToFacelet(
                         _facelet, 
                         faceIndex, 
-                        ColourPieceMap[faceIndex][squareIndex], 
-                        ColourSquareMap[faceIndex][squareIndex]
+                        COLOUR_PIECE_MAP[faceIndex][squareIndex], 
+                        COLOUR_SQUARE_MAP[faceIndex][squareIndex]
                     );
             }
         }
@@ -184,9 +211,9 @@ namespace UI
         /// </summary>
         public void SetColours(Facelet f)
         {
-            for (int i = 0; i < 6; i++)
-            for (int j = 0; j < 8; j++)
-                SetSquareColour(f.Faces[i][j], ColourPieceMap[i][j], ColourSquareMap[i][j]);
+            for (int i = 0; i < NUM_FACES; i++)
+            for (int j = 0; j < NUM_STICKERS_PER_FACE; j++)
+                SetSquareColour(f.Faces[i][j], COLOUR_PIECE_MAP[i][j], COLOUR_SQUARE_MAP[i][j]);
         }
         
         /// <summary>
@@ -215,7 +242,7 @@ namespace UI
 
         public void UndoEdit()
         {
-            if (_previousFacelets.Count == 0 || _currentIndex < _moveQueue.Count || _isAnimating) return;
+            if (_previousFacelets.Count == 0 || _currentIndex < _moveQueue.Count || _isAnimating || Manager.IsAnimatingInputs) return;
 
             SetFacelet(_previousFacelets[^1]);
             UpdateCubie();
@@ -247,18 +274,17 @@ namespace UI
         {
             int count = _highlightedPieceColours.Count;
 
-            if (count == 0) count = 3;
+            if (count == 0) count = NUM_CORNER_STICKERS;
 
 
-            foreach (var piece in count == 3 ? _cubie.Corners : _cubie.Edges)
+            foreach (var piece in count == NUM_CORNER_STICKERS ? _cubie.Corners : _cubie.Edges)
             {
                 bool match = new HashSet<int>(piece.Value.colours).SetEquals(_highlightedPieceColours);
-                print(string.Join("", piece.Value.colours) + " " + string.Join("", _highlightedPieceColours));
                 _pieceTransformList[CubieIndexToGraphicIndex[piece.Key][count - 2]]
                     .GetComponent<MeshRenderer>().material = match ? highlightedBody : normalBody;
             }
 
-            foreach (var piece in count == 3 ? _cubie.Edges : _cubie.Corners)
+            foreach (var piece in count == NUM_CORNER_STICKERS ? _cubie.Edges : _cubie.Corners)
             {
                 _pieceTransformList[CubieIndexToGraphicIndex[piece.Key][1 - (count - 2)]]
                     .GetComponent<MeshRenderer>().material = normalBody;
@@ -324,7 +350,7 @@ namespace UI
         /// </summary>
         public async void Solve(int stage)
         {
-            if (_moveQueue.Count != _currentIndex || _isAnimating)
+            if (_moveQueue.Count != _currentIndex || _isAnimating || Manager.IsAnimatingInputs)
                 return;
 
             GenerateFaceletFromGraphics();
@@ -355,37 +381,37 @@ namespace UI
             float scroll = Input.GetAxis("Mouse ScrollWheel");
 
             // Ignore insignificant scroll inputs
-            if (!(Mathf.Abs(scroll) > 0.01f)) return;
+            if (!(Mathf.Abs(scroll) > SCROLL_THRESHOLD)) return;
             
             // Calculate new scale based on scroll input
             Vector3 currentScale = transform.localScale;
             Vector3 newScale = currentScale + Vector3.one * scroll;
 
             // Clamp scale within limits
-            float clampedScale = Mathf.Clamp(newScale.x, 0.1f, 1.3f);
+            float clampedScale = Mathf.Clamp(newScale.x, MIN_ZOOM_SCALE, MAX_ZOOM_SCALE);
             transform.localScale = new Vector3(clampedScale, clampedScale, clampedScale);
         }
 
         public void Scramble()
         {
-            if (_currentIndex < _moveQueue.Count || _isAnimating) return;
+            if (_currentIndex < _moveQueue.Count || _isAnimating || Manager.IsAnimatingInputs) return;
 
             TrackCube();
 
             System.Random r = new();
 
-            int total = r.Next(60, 80);
+            int total = r.Next(MIN_SCRAMBLE_MOVES, MAX_SCRAMBLE_MOVES);
 
             _isScrambling = true;
             for (int i = 0; i < total; i++)
             {
-                string move = ColourToFace(r.Next(0, 6));
+                string move = ColourToFace(r.Next(0, NUM_FACES - 1));
                 
                 // Prevent repeated face moves consecutively
                 if (_moveQueue.Count > 0 && move == _moveQueue.Last()[0].ToString()) continue;
 
                 // Randomly add modifiers (', 2, or none)
-                move += r.Next(0, 10) is <= 2 ? "'" : r.Next(0, 10) == 3 ? "2" : "";
+                move += r.Next(0, 10) is <= COUNTER_CLOCKWISE_CHANCE ? "'" : r.Next(0, 10) == DOUBLE_TURN_CHANCE ? "2" : "";
 
                 Enqueue(move);
             }
@@ -393,7 +419,7 @@ namespace UI
 
         private void HandleMoveInputs()
         {
-            if (_isSolving || Manager.Instance.isWindowOpen)
+            if (_isSolving || Manager.Instance.isWindowOpen || Manager.IsAnimatingInputs)
                 return;
 
             foreach (var key in _moveInputs.Where(Input.GetKeyDown))
@@ -449,7 +475,7 @@ namespace UI
         private bool _isProgressing = true;
 
         // Indexes of centrepieces
-        private readonly int[] _centrePieces = { 10, 16, 22, 4, 14, 12 };
+        private readonly int[] CENTRE_PIECE_INDEXES = { 10, 16, 22, 4, 14, 12 };
 
         public void ClearQueue()
         {
@@ -493,7 +519,6 @@ namespace UI
 
         private string GetPreviousMove()
         {
-            if (_currentIndex == 0) return "";
             // If no solution exists, manual move queue
             if (_solution.Count == 0 && _moveQueue.Count > 0)
             {
@@ -569,7 +594,7 @@ namespace UI
                 _ => Vector3.zero
             };
 
-            float angle = 90f;
+            float angle = QUARTER_TURN_ANGLE;
 
             if (isDouble)
                 angle *= 2;
@@ -583,12 +608,17 @@ namespace UI
             return axis * angle;
         }
 
+        public void MoveOnCubie(string move)
+        {
+            _cubie.Move(move);
+        }
+
         private void AnimateMove()
         {
             _rotationPlane.localRotation = Quaternion.RotateTowards(
                 _rotationPlane.localRotation,
                 _destinationOrientation,
-                (_isScrambling ? 40f : animationSpeed) * 100 * Time.deltaTime);
+                (_isScrambling ? SCRAMBLE_ANIMATION_SPEED : animationSpeed) * ROTATION_MULTIPLIER * Time.deltaTime);
 
             // Keep rotating until reached
             if (_rotationPlane.localRotation != _destinationOrientation) return;
@@ -618,8 +648,7 @@ namespace UI
 
                 return;
             }
-
-
+            
             PostAnimUpdate();
 
             // End of animation step
@@ -662,10 +691,10 @@ namespace UI
             }
         }
 
-        private void GroupPieces(int face)
+        public void GroupPieces(int face)
         {
-            _movedPieceIndexes = ColourPieceMap[face].ToList();
-            _movedPieceIndexes.Add(_centrePieces[face]);
+            _movedPieceIndexes = COLOUR_PIECE_MAP[face].ToList();
+            _movedPieceIndexes.Add(CENTRE_PIECE_INDEXES[face]);
             // When ungroup pieces, need to place pieces in the correct order 
             // Indexes will be messed up if not in order.
             _movedPieceIndexes.Sort();
@@ -674,7 +703,7 @@ namespace UI
                 _pieceTransformList[pieceOnFaceIndex].SetParent(_rotationPlane);
         }
 
-        private void UngroupPieces()
+        public void UngroupPieces()
         {
             int count = _rotationPlane.childCount;
             for (int i = 0; i < count; i++)
@@ -686,7 +715,7 @@ namespace UI
 
         public void UpdateAnimationSpeed(Slider slider)
         {
-            animationSpeed = Mathf.Approximately(slider.value, 6f) ? 30f : slider.value;
+            animationSpeed = Mathf.Approximately(slider.value, slider.maxValue) ? SLIDER_MAX_SPEED : slider.value;
         }
 
         public Stage GetCurrentStage()
@@ -705,8 +734,8 @@ namespace UI
             if (Manager.Instance.isWindowOpen)
                 return;
 
-            // Only animate if currently animating and if the cube is not rotating
-            if (_isAnimating && !isOrientating)
+            // Only animate if currently animating and if the cube is animating inputs
+            if (_isAnimating && !CubeRotator.IsBusy && !LayerRotator.IsBusy)
                 AnimateMove();
 
             // Only move if automating or in the editor for shuffling
@@ -730,7 +759,7 @@ namespace UI
             ToggleAuto = 4
         }
 
-        private static readonly Dictionary<KeyCode, MoveCommand> KeyMapping = new()
+        private static readonly Dictionary<KeyCode, MoveCommand> KEY_MAPPINGS = new()
         {
             { KeyCode.RightArrow, MoveCommand.Forward },
             { KeyCode.LeftArrow, MoveCommand.Backward },
@@ -779,7 +808,7 @@ namespace UI
 
         private void HandleKeyboardShortcuts()
         {
-            foreach (var shortcut in KeyMapping)
+            foreach (var shortcut in KEY_MAPPINGS)
                 if (Input.GetKeyDown(shortcut.Key))
                 {
                     HandleMoveControls((int)shortcut.Value);
@@ -795,7 +824,7 @@ namespace UI
             UpdateFacelet();
             SetColours(_facelet);
 
-            if (Manager.Instance.useStages && false)
+            if (Manager.Instance.useStages)
             {
                 print("Setting to end");
                 _currentSequence = _solution[^1];
@@ -817,7 +846,7 @@ namespace UI
             UpdateCubie();
             SetColours(_facelet);
 
-            if (Manager.Instance.useStages && false)
+            if (Manager.Instance.useStages)
             {
                 _currentSequence = _solution[0];
                 _moveQueue = _currentSequence.Moves;
@@ -861,7 +890,7 @@ namespace UI
         {
             var moves = _solution.SelectMany(s => s.Moves).ToList();
 
-            _wholeSequence = new Sequence(-1, moves, new() { });
+            _wholeSequence = new Sequence(-1, moves, new List<int>());
         }
 
         public void SetSequenceFromIndex()

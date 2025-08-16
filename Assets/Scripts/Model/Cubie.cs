@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +10,21 @@ namespace Model
 {
     public class Cubie
     {
+        #region Constants
+
+        private const int MIN_SCRAMBLE_MOVES = 60;
+        private const int MAX_SCRAMBLE_MOVES = 80;
+
+        private const int NUM_FACES = 6;
+
+        private const int COUNTER_CLOCKWISE_CHANCE = 2; // 0,1,2 → 30%
+        private const int DOUBLE_TURN_CHANCE = 3;       // 3 → 10%
+
+        private const int NUM_CORNER_STICKERS = 3;
+        private const int NUM_EDGE_STICKERS = 2;
+
+        #endregion
+
         public struct Piece
         {
             public int orientation;
@@ -95,27 +110,27 @@ namespace Model
 
         public void Add(int index, List<int> colours, int orientation)
         {
-            (colours.Count == 3 ? Corners : Edges).Add(index, new Piece(colours, orientation));
+            (colours.Count == NUM_CORNER_STICKERS ? Corners : Edges).Add(index, new Piece(colours, orientation));
         }
 
         [CanBeNull]
         public static List<int> FindHomeColours(List<int> colours)
         {
             // Validity check for correct number of colours
-            if (colours.Count != 2 && colours.Count != 3)
+            if (colours.Count != NUM_EDGE_STICKERS && colours.Count != NUM_CORNER_STICKERS)
                 throw new ArgumentException("Impossible piece");
 
             var index = FindHomeIndex(colours);
 
             // Identify which to search
-            var pieces = colours.Count == 2 ? Identity.Edges : Identity.Corners;
+            var pieces = colours.Count == NUM_EDGE_STICKERS ? Identity.Edges : Identity.Corners;
 
             return index == -1 ? null : new List<int>(pieces[index].colours);
         }
 
         public static int FindHomeIndex(List<int> colours)
         {
-            var pieces = colours.Count == 2 ? Identity.Edges : Identity.Corners;
+            var pieces = colours.Count == NUM_EDGE_STICKERS ? Identity.Edges : Identity.Corners;
 
             // Search for matching colour sequence
             foreach (var kvp in pieces.Where(kvp => kvp.Value.colours.All(colours.Contains)))
@@ -127,7 +142,7 @@ namespace Model
 
         public static int FindHomeOrientation(List<int> colours)
         {
-            var pieces = colours.Count == 2 ? Identity.Edges : Identity.Corners;
+            var pieces = colours.Count == NUM_EDGE_STICKERS ? Identity.Edges : Identity.Corners;
 
             // Check if colours are matching, ignoring order
             foreach (var kvp in pieces.Where(kvp => kvp.Value.colours.All(colours.Contains)))
@@ -141,7 +156,7 @@ namespace Model
         {
             int orientation = 0;
 
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < NUM_CORNER_STICKERS; i++)
             {
                 // Check if order of colours are matching
                 if (data.SequenceEqual(original))
@@ -185,7 +200,7 @@ namespace Model
         /// First array is index of the corner pieces on the face.
         /// Second array is the adjustment to the orientation so that the layer rotates properly
         /// </summary>
-        private static readonly Dictionary<int, (int[] piecesIndexes, int[] orientationDeltas)> CornerMoveMap = new()
+        private static readonly Dictionary<int, (int[] piecesIndexes, int[] orientationDeltas)> CORNER_MOVE_MAP = new()
         {
             { YELLOW, (new[] { 0, 1, 2, 3 }, new[] { 0, 0, 0, 0 }) },
             { WHITE,  (new[] { 7, 6, 5, 4 }, new[] { 0, 0, 0, 0 }) },
@@ -202,7 +217,7 @@ namespace Model
         /// First array is index of the edge pieces on the face.
         /// Second array is the adjustment to the orientation so that the layer rotates properly
         /// </summary>
-        private static readonly Dictionary<int, (int[] piecesIndexes, int[] orientationDeltas)> EdgeMoveMap = new()
+        private static readonly Dictionary<int, (int[] piecesIndexes, int[] orientationDeltas)> EDGE_MOVE_MAP = new()
         {
             { YELLOW, (new[] { 0, 1 , 2 , 3  }, new[] { 0, 0, 0, 0 }) }, 
             { WHITE , (new[] { 7, 6 , 5 , 4  }, new[] { 0, 0, 0, 0 }) }, 
@@ -226,8 +241,8 @@ namespace Model
 
         private void RotateLayer(string layer, bool prime, bool twice)
         {
-            RotatePieces(CornerMoveMap[FaceToIndex(layer)], Corners, prime, twice);
-            RotatePieces(EdgeMoveMap[FaceToIndex(layer)], Edges, prime, twice);
+            RotatePieces(CORNER_MOVE_MAP[FaceToIndex(layer)], Corners, prime, twice);
+            RotatePieces(EDGE_MOVE_MAP[FaceToIndex(layer)], Edges, prime, twice);
         }
 
         private static void RotatePieces((int[] indexes, int[] orientationDelta) moveInfo, IDictionary<int, Piece> pieces, bool prime, bool twice)
@@ -299,17 +314,16 @@ namespace Model
 
         #endregion
 
-
-        public void Shuffle()
+        public void Scramble()
         {
             string lastFaceMoved = "X";
             System.Random r = new();
 
-            int total = r.Next(60, 80);
+            int total = r.Next(MIN_SCRAMBLE_MOVES, MAX_SCRAMBLE_MOVES);
 
             for (int i = 0; i < total; i++)
             {
-                string move = ColourToFace(r.Next(0, 5));
+                string move = ColourToFace(r.Next(0, NUM_FACES - 1));
 
                 // Avoid moving the same face twice
                 if (move == lastFaceMoved[0].ToString()) continue;
@@ -319,7 +333,7 @@ namespace Model
                 int rand = r.Next(0, 10);
                 // 30% chance for counter-clockwise
                 // 10% chance for double turn
-                move += rand <= 2 ? "'" : rand == 3 ? "2" : "";
+                move += rand <= COUNTER_CLOCKWISE_CHANCE ? "'" : rand == DOUBLE_TURN_CHANCE ? "2" : "";
 
                 Move(move);
             }

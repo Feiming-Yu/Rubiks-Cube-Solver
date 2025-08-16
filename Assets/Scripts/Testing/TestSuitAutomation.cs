@@ -37,7 +37,7 @@ namespace Testing
                     {
                         // Create and shuffle a new cube
                         Cubie cube = new(Identity);
-                        cube.Shuffle();
+                        cube.Scramble();
 
                         Solver solver = new(false, testIndex);
                         await solver.SolveAsync(cube, 0);

@@ -7,8 +7,10 @@ namespace Tutorial
     {
         [SerializeField] private TMPro.TextMeshProUGUI body;
 
-        private static readonly Vector3 HiddenPos = new(-160f, -15f, 0f);
-        private static readonly Vector3 VisiblePos = new(-64.75f, -15f, 0f);
+        private static readonly Vector3 HIDDEN_POS = new(-160f, -15f, 0f);
+        private static readonly Vector3 VISIBLE_POS = new(-64.75f, -15f, 0f);
+
+        private const float ANIMATION_TIME = 0.1f;
 
         // singleton instance
         public static CubeErrorBox Instance;
@@ -29,12 +31,12 @@ namespace Tutorial
         public void Show()
         {
             UpdateMessage();
-            StartCoroutine(Animate(transform.localPosition, VisiblePos, 0.1f));
+            StartCoroutine(Animate(transform.localPosition, VISIBLE_POS, ANIMATION_TIME));
         }
 
         public void Hide()
         {
-            StartCoroutine(Animate(transform.localPosition, HiddenPos, 0.1f));
+            StartCoroutine(Animate(transform.localPosition, HIDDEN_POS, ANIMATION_TIME));
         }
 
         private IEnumerator Animate(Vector3 from, Vector3 to, float time)

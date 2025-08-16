@@ -8,6 +8,34 @@ namespace UI
 {
     public class HorizontalMoveDisplay : MonoBehaviour
     {
+        #region Constants
+
+        private const float INITIAL_X = 41f;
+        private const float MOVE_OFFSET_X = -18f;
+        private const int MAX_FONT_SIZE = 12;
+        private const int MIN_FONT_SIZE = 8;
+        private const float ANIMATION_BASE_TIME = 0.15f;
+
+        // Distance clamps
+        private const int DISTANCE_CLAMP_NEGATIVE_PROGRESS = -6;
+        private const int DISTANCE_CLAMP_POSITIVE_PROGRESS = 5;
+        private const int DISTANCE_CLAMP_NEGATIVE_REGRESS = -5;
+        private const int DISTANCE_CLAMP_POSITIVE_REGRESS = 6;
+
+        // Pre-animation distances
+        private const float PRE_ANIM_DIST_POSITIVE = 5f;
+        private const float PRE_ANIM_DIST_NEGATIVE = 6f;
+
+        // Alpha values
+        private const float ALPHA_THEME0_MIN = 0.2f;
+        private const float ALPHA_THEME0_MAX = 0f;
+        private const float ALPHA_THEME1_MIN = 0.5f;
+        private const float ALPHA_THEME1_MAX = 0f;
+        private const float THEME0_RGB = 0.7f;
+        private const float THEME1_RGB = 0.2f;
+
+        #endregion
+
         [SerializeField] private GameObject moveTextPrefab;
 
         private int _currentIndex;
@@ -20,7 +48,6 @@ namespace UI
         /// </summary>
         public void DisplayMoves(List<string> moves)
         {
-            // Clear any previously displayed move texts from the ui
             ClearDisplay();
 
             _moves = new List<string>(moves);
@@ -28,7 +55,7 @@ namespace UI
             _currentIndex = Cube.Instance.GetCurrentIndex();
 
             if (_currentIndex == _moveCount
-                && Manager.Instance.useStages 
+                && Manager.Instance.useStages
                 && !Cube.Instance.LastSequence)
             {
                 _currentIndex--;
@@ -37,12 +64,9 @@ namespace UI
             for (int i = 0; i < moves.Count; i++)
             {
                 GameObject moveObj = Instantiate(moveTextPrefab, transform);
-
-                // Get the text component and set it to the move string
                 TextMeshProUGUI moveText = moveObj.GetComponent<TextMeshProUGUI>();
                 moveText.text = moves[i];
 
-                // Apply visual style, highlighting the current move if applicable
                 SetTextStyle(moveText, i == _currentIndex, i, true);
             }
 
@@ -52,50 +76,47 @@ namespace UI
             SequenceBox.Instance.UpdateInformation();
         }
 
-        /// <summary>
-        /// Clears all moves, resets counters, and repositions the display.
-        /// </summary>
         public void ClearDisplay()
         {
             for (int i = transform.childCount - 1; i >= 0; i--)
                 Destroy(transform.GetChild(i).gameObject);
 
-            // Reset counters
             _moveCount = 0;
             _currentIndex = 0;
 
-            // Reset horizontal position
             var pos = transform.localPosition;
-            transform.localPosition = new Vector3(41, pos.y, pos.z);
-        } 
+            transform.localPosition = new Vector3(INITIAL_X, pos.y, pos.z);
+        }
 
         public string GetCurrentDisplayedMove()
         {
             return _currentIndex == _moveCount ? "" : _moves[_currentIndex];
         }
-        
+
         private void SetTextStyle(TMP_Text text, bool isCurrentMove, int index, bool postAnimation, bool isProgress = true)
         {
             if (isCurrentMove)
                 SetFocusedStyle(text);
             else
             {
-                text.fontSize = 8;
-                
-                // During animation, show the last move before destroying at the end of animation
-                int distanceFromCentre = isProgress 
-                    ? Mathf.Clamp(index - _currentIndex, -6, 5) 
-                    : Mathf.Clamp(index - _currentIndex, -5, 6);
-                float preAnimDist = distanceFromCentre > 0 == isProgress ? 5f : 6f;
-                float position = Mathf.Abs((float)distanceFromCentre) / (postAnimation ? 5f : preAnimDist);
-            
+                text.fontSize = MIN_FONT_SIZE;
+
+                int distanceFromCentre = isProgress
+    ? Mathf.Clamp(index - _currentIndex, DISTANCE_CLAMP_NEGATIVE_PROGRESS, DISTANCE_CLAMP_POSITIVE_PROGRESS)
+    : Mathf.Clamp(index - _currentIndex, DISTANCE_CLAMP_NEGATIVE_REGRESS, DISTANCE_CLAMP_POSITIVE_REGRESS);
+
+                float preAnimDist = distanceFromCentre > 0 == isProgress ? PRE_ANIM_DIST_POSITIVE : PRE_ANIM_DIST_NEGATIVE;
+                float position = Mathf.Abs(distanceFromCentre) / (postAnimation ? PRE_ANIM_DIST_POSITIVE : preAnimDist);
+
                 float alpha = Manager.Instance.currentThemeIndex == 0
-                    ? Mathf.Lerp(0.2f, 0f, position)
-                    : Mathf.Lerp(0.5f, 0f, position);
-                text.color = Manager.Instance.currentThemeIndex == 0 
-                    ? new Color(0.7f, 0.7f, 0.7f, alpha)
-                    : new Color(0.2f, 0.2f, 0.2f, alpha);
-                
+                    ? Mathf.Lerp(ALPHA_THEME0_MIN, ALPHA_THEME0_MAX, position)
+                    : Mathf.Lerp(ALPHA_THEME1_MIN, ALPHA_THEME1_MAX, position);
+
+                text.color = Manager.Instance.currentThemeIndex == 0
+                    ? new Color(THEME0_RGB, THEME0_RGB, THEME0_RGB, alpha)
+                    : new Color(THEME1_RGB, THEME1_RGB, THEME1_RGB, alpha);
+
+
                 text.fontStyle = FontStyles.Normal;
             }
         }
@@ -114,31 +135,22 @@ namespace UI
 
         private void StyleFocusedText()
         {
-            // The cube is solved, no moves left
             if (_currentIndex == _moveCount)
                 return;
 
             var text = transform.GetChild(_currentIndex).GetComponent<TextMeshProUGUI>();
-
             SetFocusedStyle(text);
         }
 
         private static void SetFocusedStyle(TMP_Text text)
         {
-            text.fontSize = 12;
+            text.fontSize = MAX_FONT_SIZE;
             text.fontStyle = FontStyles.Bold;
             text.color = Manager.Instance.currentThemeIndex == 0 ? Color.white : Color.black;
         }
 
-        public void Progress()
-        {
-            ChangeMove(true);
-        }
-    
-        public void Regress()
-        {
-            ChangeMove(false);
-        }
+        public void Progress() => ChangeMove(true);
+        public void Regress() => ChangeMove(false);
 
         private void ChangeMove(bool progress)
         {
@@ -147,14 +159,12 @@ namespace UI
             int direction = progress ? 1 : -1;
             _currentIndex += direction;
 
-            // Styling before animation
             StyleSideText(false, progress);
             StyleFocusedText();
-            
-            var pos = transform.localPosition;
 
-            float duration = 0.15f / Cube.Instance.animationSpeed;
-            StartCoroutine(ShiftListTransform(new Vector3(pos.x + (direction * -18), pos.y, pos.z), duration, progress));
+            var pos = transform.localPosition;
+            float duration = ANIMATION_BASE_TIME / Cube.Instance.animationSpeed;
+            StartCoroutine(ShiftListTransform(new Vector3(pos.x + (direction * MOVE_OFFSET_X), pos.y, pos.z), duration, progress));
         }
 
         private IEnumerator ShiftListTransform(Vector3 end, float time, bool isProgress = true)
@@ -169,38 +179,25 @@ namespace UI
                 yield return null;
             }
 
-            transform.localPosition = end; // Ensure final position is set exactly
-
-            // Styling after animation
+            transform.localPosition = end;
             StyleSideText(true, isProgress);
         }
 
-        public void ToStart()
-        {
-            SetIndexAndPosition(0);
-        }
-
-        public void ToEnd()
-        {
-            SetIndexAndPosition(_moveCount);
-        }
+        public void ToStart() => SetIndexAndPosition(0);
+        public void ToEnd() => SetIndexAndPosition(_moveCount);
 
         private void SetIndexAndPosition(int index)
         {
             _currentIndex = index;
-            
-            // No animation needed, just use post animation styling
             StyleFocusedText();
             StyleSideText(true);
-
             SetPosition(index);
         }
 
         private void SetPosition(int index)
         {
             var pos = transform.localPosition;
-            // 41 is initial x-coordinate
-            float x = 41f + (index * -18);
+            float x = INITIAL_X + (index * MOVE_OFFSET_X);
             transform.localPosition = new Vector3(x, pos.y, pos.z);
         }
 
@@ -208,10 +205,7 @@ namespace UI
         {
             for (int i = 0; i < _moveCount; i++)
             {
-                // Get the text component and set it to the move string
                 TextMeshProUGUI moveText = transform.GetChild(i).GetComponent<TextMeshProUGUI>();
-
-                // Apply visual style, highlighting the current move if applicable
                 SetTextStyle(moveText, i == _currentIndex, i, true);
             }
         }

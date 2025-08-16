@@ -9,7 +9,7 @@ namespace Tutorial
         // singleton instance
         public static SequenceBox Instance;
 
-        private void Start()
+        private void Awake()
         {
             if (Instance == null)
                 Instance = this;
@@ -21,18 +21,20 @@ namespace Tutorial
 
         [SerializeField] private GameObject showButton;
 
-        private readonly Vector3 _hiddenPos = new(160f, 8f, 0f);
-        private readonly Vector3 _visiblePos = new(62.5f, 8f, 0f);
+        private readonly Vector3 HIDDEN_POS = new(160f, 8f, 0f);
+        private readonly Vector3 VISIBLE_POS = new(62.5f, 8f, 0f);
+
+        private const float ANIMATION_TIME = 0.1f;
 
         public void Show()
         {
             UpdateInformation();
-            StartCoroutine(Animate(transform.localPosition, _visiblePos, 0.1f));
+            StartCoroutine(Animate(transform.localPosition, VISIBLE_POS, ANIMATION_TIME));
         }
 
         public void Hide(bool useTutorials = true)
         {
-            StartCoroutine(Animate(transform.localPosition, _hiddenPos, 0.1f, true, useTutorials));
+            StartCoroutine(Animate(transform.localPosition, HIDDEN_POS, ANIMATION_TIME, true, useTutorials));
         }
 
         public void UpdateInformation()
@@ -56,10 +58,7 @@ namespace Tutorial
 
             transform.localPosition = to;
 
-            if (hide && useTutorials)
-                showButton.SetActive(true);
-            else
-                showButton.SetActive(false);
+            showButton.SetActive(hide && useTutorials);
         }
     }
 }

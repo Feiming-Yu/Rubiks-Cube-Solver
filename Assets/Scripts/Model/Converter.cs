@@ -7,6 +7,16 @@ namespace Model
 {
     public static class Converter
     {
+        #region Constants
+
+        private const int NUM_CORNERS = 8;
+        private const int NUM_EDGES = 12;
+
+        private const int NUM_CORNER_STICKERS = 3;
+        private const int NUM_EDGE_STICKERS = 2;
+
+        #endregion
+
         //       
         //                   .------------.
         //                   | 15  14  13 |
@@ -32,7 +42,7 @@ namespace Model
         #region Facelet To Cubie
 
         // Indexes of squares for edge pieces
-        private static readonly int[][] EdgeFaceletMap =
+        private static readonly int[][] EDGE_FACELET_MAP =
         {
             new[] { 11, 41 }, // UR
             new[] { 09, 25 }, // UF
@@ -49,7 +59,7 @@ namespace Model
         };
 
         // Indexes of squares for corner pieces
-        private static readonly int[][] CornerFaceletMap =
+        private static readonly int[][] CORNER_FACELET_MAP =
         {
             new[] { 8 , 40, 26 }, // URF
             new[] { 10, 24, 34 }, // UFL
@@ -67,14 +77,14 @@ namespace Model
 
             var squares = facelet.Concat();
 
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < NUM_CORNERS; i++)
             {
                 List<int> colours = new();
 
                 // Iterates through the 3 squares on a corner piece
-                for (int j = 0; j < 3; j++)
+                for (int j = 0; j < NUM_CORNER_STICKERS; j++)
                 {
-                    colours.Add(squares[CornerFaceletMap[i][j]]);
+                    colours.Add(squares[CORNER_FACELET_MAP[i][j]]);
                 }
 
                 var orientation = 0;
@@ -89,14 +99,14 @@ namespace Model
                 cubie.Add(i, colours, orientation);
             }
 
-            for (int i = 0; i < 12; i++)
+            for (int i = 0; i < NUM_EDGES; i++)
             {
                 List<int> colours = new();
 
                 // Iterates through the 2 squares on an edge piece
-                for (int j = 0; j < 2; j++)
+                for (int j = 0; j < NUM_EDGE_STICKERS; j++)
                 {
-                    colours.Add(squares[EdgeFaceletMap[i][j]]);
+                    colours.Add(squares[EDGE_FACELET_MAP[i][j]]);
                 }
 
                 var orientation = 0;
@@ -121,14 +131,14 @@ namespace Model
         /// <summary>
         /// 0 = corners, 1 = edges
         /// </summary>
-        private static readonly int[] PieceTypeCubieMap = { 0, 1, 0, 1, 1, 0, 1, 0 };
+        private static readonly int[] PIECE_TYPE_CUBIE_MAP = { 0, 1, 0, 1, 1, 0, 1, 0 };
         
         /// <summary>
         /// First index = face
         /// Second index = piece index on face
         /// Third index = { piece index on cubie, square that corresponds to the face }
         /// </summary>
-        private static readonly int[][][] CubieMap =
+        private static readonly int[][][] CUBIE_MAP =
         {
             new[] // D FACE
             {
@@ -211,10 +221,10 @@ namespace Model
                 for (int j = 0; j < 8; j++)
                 {
                     // Corners or edges
-                    var pieces = PieceTypeCubieMap[j] == 0 ? cubie.Corners : cubie.Edges;
+                    var pieces = PIECE_TYPE_CUBIE_MAP[j] == 0 ? cubie.Corners : cubie.Edges;
                     
-                    int pieceIndex = CubieMap[i][j][0];
-                    int squareIndex = CubieMap[i][j][1];
+                    int pieceIndex = CUBIE_MAP[i][j][0];
+                    int squareIndex = CUBIE_MAP[i][j][1];
 
                     Piece piece = pieces[pieceIndex];
                     int index = NormaliseIndex(squareIndex - piece.orientation, piece.colours.Count);
@@ -240,7 +250,7 @@ namespace Model
 
         public static int GetOtherEdgeSquareIndex(int index)
         {
-            foreach (var edge in EdgeFaceletMap.Where(edge => edge.Contains(index)))
+            foreach (var edge in EDGE_FACELET_MAP.Where(edge => edge.Contains(index)))
                 return edge[1 - edge.ToList().IndexOf(index)];
 
             throw new ArgumentException("Square index out of bounds");
