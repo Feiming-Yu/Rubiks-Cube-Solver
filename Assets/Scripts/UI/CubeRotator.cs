@@ -1,3 +1,4 @@
+using System.Data;
 using UnityEngine;
 using UnityEngine.UI;
 using static System.MathF;
@@ -6,10 +7,34 @@ namespace UI
 {
     public class CubeRotator : MonoBehaviour
     {
+        // singleton instance
+        public static CubeRotator Instance;
+
+        private void Awake()
+        {
+            if (Instance == null)
+                Instance = this;
+            else
+                Destroy(Instance);
+        }
+
+        #region Constants
+
+        private readonly Vector3 STARTING_ROTATON = new(0, -90, 0);
+        private readonly Vector3 X_AXIS = new(1, 0, 0);
+        private readonly Vector3 Y_AXIS = new(0, 1, 0);
+        private readonly Vector3 Z_AXIS = new(0, 0, 1);
+        private const int DRAG_THRESHOLD = 10;
+        private const int ROTATION_MULTIPLIER = 40;
+        private const float X_DIRECTION_REDUCER = 1.5F;
+
+        #endregion
+
         [SerializeField] private Transform cube;
         [SerializeField] private Camera cam;
-        [SerializeField] private int snappingSpeed;
-        [SerializeField] private float rotationSpeed = 5f;
+
+        public int snappingSpeed;
+        public float rotationSpeed = 5f;
 
         private bool _isOrientating;
         private bool _isCalculated;
@@ -30,6 +55,16 @@ namespace UI
 
         public void UpdateRotationSpeed(Slider speedSlider) => rotationSpeed = speedSlider.value;
 
+        public static bool IsBusy { get; private set; }
+
+        public void ResetRotation()
+        {
+            if (Manager.IsAnimatingInputs) return;
+            
+            _quantisedRotation = Quaternion.Euler(STARTING_ROTATON);
+            IsBusy = _isSnapping = true;
+        }
+
         private void Update()
         {
             HandleRMBRelease();
@@ -44,25 +79,25 @@ namespace UI
 
         private void HandleRMBRelease()
         {
-            if (Input.GetMouseButton(1)) return;
+            if (Input.GetMouseButton(1) || !_isOrientating) return;
 
             // Reset flags
-            _isOrientating = _isCalculated = Cube.Instance.isOrientating = false;
+            IsBusy = _isOrientating = _isCalculated = false;
 
-            _quantisedRotation = Quaternion.Euler(QuantiseVector(cube.eulerAngles));
+            _quantisedRotation = Quaternion.Euler(NormaliseVector(QuantiseVector(cube.eulerAngles)));
 
             // Start the animation to snap the cube to a quantised rotation
-            _isSnapping = true;
+            IsBusy = _isSnapping = true;
         }
 
         private void HandleRMBPress()
         {
-            if (!Input.GetMouseButtonDown(1) || _isCalculated || _isOrientating || Manager.Instance.isWindowOpen) 
+            if (!Input.GetMouseButtonDown(1) || _isCalculated || Manager.Instance.isWindowOpen || Manager.Instance.isOnCube || IsBusy) 
                 return;
 
             _lastMousePos = _initialClickPos = MousePosition;
 
-            _isOrientating = Cube.Instance.isOrientating = true;
+            IsBusy = _isOrientating = true;
         }
 
         /// <summary>
@@ -76,8 +111,8 @@ namespace UI
             cube.rotation = Quaternion.RotateTowards(cube.rotation, _quantisedRotation, snappingSpeed * Time.deltaTime);
 
             // Stop animation once the current cube has reached quantised rotation
-            if (cube.rotation.eulerAngles == _quantisedRotation.eulerAngles)
-                _isSnapping = false;
+            if (cube.rotation == _quantisedRotation)
+                IsBusy = _isSnapping = false;
         }
 
         private void HandleMouseMove()
@@ -94,8 +129,8 @@ namespace UI
             if (!_isCalculated) return;
 
             // x-coordinate is more sensitive
-            float rotation = _dragAxis.y == 0 ? newMousePos.y - _lastMousePos.y : (newMousePos.x - _lastMousePos.x) / 1.5f;
-            rotation *= Time.deltaTime * rotationSpeed * 40;
+            float rotation = _dragAxis.y == 0 ? newMousePos.y - _lastMousePos.y : (newMousePos.x - _lastMousePos.x) / X_DIRECTION_REDUCER;
+            rotation *= Time.deltaTime * rotationSpeed * ROTATION_MULTIPLIER;
 
             cube.Rotate(_dragAxis, rotation, Space.World);
 
@@ -109,18 +144,20 @@ namespace UI
             // Checks if the vector change is significant
             // True if beyond the threshold of 10 pixels
             // Reduces noise and accidental input
-            if (delta.magnitude < 10f) return;
+            if (delta.magnitude < DRAG_THRESHOLD) return;
 
             var modDelta = CalculateModulusVector(delta);
 
             // If the change in x-position is more significant
             if (modDelta.x > modDelta.y)
+                // Rotate around the y-axis
                 // Multiply by -1 as direction of rotation is opposite to mouse movement
-                _dragAxis = new Vector3(0, 1, 0) * -1;
+                _dragAxis = Y_AXIS * -1; 
             else
             {
                 bool isLeftSide = initialClickPos.x < 0;
-                _dragAxis = isLeftSide ? new Vector3(1, 0, 0) : new Vector3(0, 0, 1);
+                // Rotate around the x-axis if on the left side, otherwise rotate around the z-axis
+                _dragAxis = isLeftSide ? X_AXIS : Z_AXIS; 
             }
 
             // Locks the drag direction to avoid a non-one-dimensional rotation value
@@ -148,6 +185,21 @@ namespace UI
                 Mathf.Round(vector.y / 90f),
                 Mathf.Round(vector.z / 90f)
             ) * 90f;
+        }
+
+        public static Vector3 NormaliseVector(Vector3 vector)
+        {
+            return new Vector3(
+                NormalizeAngle(vector.x),
+                NormalizeAngle(vector.y),
+                NormalizeAngle(vector.z)
+            );
+        }
+
+        private static float NormalizeAngle(float angle)
+        {
+            angle = Mathf.Repeat(angle + 180f, 360f) - 180f;
+            return angle;
         }
     }
 }
